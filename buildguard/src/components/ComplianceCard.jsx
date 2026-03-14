@@ -1,92 +1,101 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { mapNodeToUI } from '../utils/nsvgMapper';
-import { ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ChevronRight, HelpCircle, AlertTriangle } from 'lucide-react';
 
 const ComplianceCard = ({ item, index }) => {
-    const isSafe = item.status === 'PASS' || item.isSafe;
-    const label = item.description || item.label;
-    const rationale = item.evidence || item.rationale;
-    const type_raw = item.check_id ? 'verification' : (item.type || 'general');
+    // Determine raw status flexibly
+    const rawStatus = String(item.status || (item.isSafe ? 'PASS' : 'FAIL')).toUpperCase().trim();
+    
+    // Categorize status for color and icon
+    const isPass = ['PASS', 'PASSED', 'TRUE', 'SAFE', 'OK'].includes(rawStatus) || item.isSafe === true;
+    const isNeutral = ['NOT APPLICABLE', 'N/A', 'NOT POSSIBLE', 'UNKNOWN'].includes(rawStatus);
+    const isError = ['ERROR', 'WITH ERROR', 'FAILED_TO_PARSE'].includes(rawStatus);
+    const isFail = !isPass && !isNeutral && !isError;
 
-    const { icon: NodeIcon, color, label: typeLabel } = mapNodeToUI(type_raw);
+    const label = item.description || item.label || 'Unknown Check';
+    const rationale = item.evidence || item.rationale || 'No rationale provided by engine.';
+
+    // Configure Status Display
+    const getStatusConfig = () => {
+        if (isPass) return { color: 'var(--accent-green)', badgeClass: 'badge-pass', Icon: ShieldCheck, text: rawStatus };
+        if (isNeutral) return { color: 'var(--text-muted)', badgeClass: 'badge-neutral', Icon: HelpCircle, text: rawStatus };
+        if (isError) return { color: 'var(--accent-orange)', badgeClass: 'badge-warning', Icon: AlertTriangle, text: rawStatus };
+        return { color: 'var(--accent-red)', badgeClass: 'badge-fail', Icon: ShieldAlert, text: rawStatus };
+    };
+
+    const { color, badgeClass, Icon, text } = getStatusConfig();
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.03 }}
-            className="ledger-item"
-            style={{ padding: '16px 24px' }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="glass-card"
+            style={{ padding: '20px', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}
         >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '20px' }}>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                    <div style={{
-                        color: color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginTop: '2px'
-                    }}>
-                        <NodeIcon size={16} strokeWidth={2.5} />
+            {/* Status Indicating Bar */}
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: color }} />
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ color: color, marginTop: '2px' }}>
+                        <Icon size={18} />
                     </div>
                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                             <span style={{
                                 fontFamily: 'var(--font-mono)',
-                                fontSize: '9px',
+                                fontSize: '10px',
                                 fontWeight: '700',
-                                color: 'var(--text-muted)',
-                                letterSpacing: '0.05em'
+                                color: 'var(--text-muted)'
                             }}>
                                 {item.check_id || `ID_${index.toString().padStart(3, '0')}`}
                             </span>
-                            <span className="status-badge" style={{
-                                backgroundColor: isSafe ? 'rgba(5, 150, 105, 0.1)' : 'rgba(225, 29, 72, 0.1)',
-                                color: isSafe ? 'var(--accent-green)' : 'var(--accent-red)',
-                            }}>
-                                {item.status || (isSafe ? 'PASS' : 'FAIL')}
+                            <span className={`portal-badge ${badgeClass}`}>
+                                {text}
                             </span>
                         </div>
-                        <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>{label}</h3>
-                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', maxWidth: '320px' }}>
+                        <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', lineHeight: '1.4' }}>{label}</h3>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
                             {rationale}
                         </p>
                     </div>
                 </div>
 
-                {item.confidence && (
+                {(item.confidence !== undefined || item.confidence_score !== undefined) && (
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{
                             fontFamily: 'var(--font-mono)',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            color: 'var(--text-primary)'
+                            fontSize: '14px',
+                            fontWeight: '800',
+                            color: color
                         }}>
-                            {Math.round(item.confidence * 100)}%
+                            {Math.round((item.confidence ?? item.confidence_score ?? 0) * 100)}%
                         </div>
-                        <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase' }}>MATCH</div>
+                        <div style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase' }}>MATCH</div>
                     </div>
                 )}
             </div>
 
             {item.reason && (
                 <div style={{
-                    marginTop: '12px',
-                    padding: '8px 12px',
-                    background: 'var(--bg-primary)',
-                    borderRadius: '4px',
+                    marginTop: '16px',
+                    padding: '12px',
+                    background: 'rgba(0,0,0,0.2)',
+                    borderRadius: '8px',
                     fontSize: '11px',
                     color: 'var(--text-secondary)',
-                    fontStyle: 'italic',
-                    borderLeft: `2px solid ${color}40`
+                    border: '1px solid var(--border-glass)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
                 }}>
-                    Source Ref: {item.reason}
+                    <ChevronRight size={12} color="var(--accent-primary)" />
+                    <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>SOURCE:</span> {item.reason}
                 </div>
             )}
         </motion.div>
     );
 };
-
 
 export default ComplianceCard;
