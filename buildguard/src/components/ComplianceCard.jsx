@@ -5,7 +5,7 @@ import { ShieldAlert, ShieldCheck, ChevronRight, HelpCircle, AlertTriangle } fro
 const ComplianceCard = ({ item, index }) => {
     // Determine raw status flexibly
     const rawStatus = String(item.status || (item.isSafe ? 'PASS' : 'FAIL')).toUpperCase().trim();
-    
+
     // Categorize status for color and icon
     const isPass = ['PASS', 'PASSED', 'TRUE', 'SAFE', 'OK'].includes(rawStatus) || item.isSafe === true;
     const isNeutral = ['NOT APPLICABLE', 'N/A', 'NOT POSSIBLE', 'UNKNOWN'].includes(rawStatus);
@@ -13,11 +13,15 @@ const ComplianceCard = ({ item, index }) => {
     const isFail = !isPass && !isNeutral && !isError;
 
     const label = item.description || item.label || 'Unknown Check';
-    const rationale = item.evidence || item.rationale || item.justification || 'No rationale provided by engine.';
+    const rationale = (item.rationale && item.rationale.trim()) ||
+        (item.evidence && item.evidence.trim()) ||
+        (item.justification && item.justification.trim()) ||
+        (item.comments && item.comments.trim()) ||
+        'No rationale provided by engine.';
 
     // Safely parse confidence to a decimal 0-1
     const getConfidence = () => {
-        let val = item.confidence !== undefined ? item.confidence : item.confidence_score;
+        let val = item.confidence_score !== undefined ? item.confidence_score : item.confidence;
         if (val === undefined || val === null || val === '') return null;
         if (typeof val === 'string') {
             val = parseFloat(val.replace('%', ''));

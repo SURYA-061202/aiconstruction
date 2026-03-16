@@ -18,6 +18,24 @@ const FALLBACK_SKILLS = [
     ]
   },
   {
+    id: 'drawing',
+    name: 'Drawing Checker Agent',
+    skills: [
+      { id: 'architectural_review', name: 'Architectural Design Review' },
+      { id: 'structural_integrity', name: 'Structural Integrity Check' },
+      { id: 'mep_clash_detection', name: 'MEP Clash Detection' }
+    ]
+  },
+  {
+    id: 'boq',
+    name: 'BOQ Agent',
+    skills: [
+      { id: 'takeoff_analysis', name: 'Quantity Takeoff Analysis' },
+      { id: 'cost_estimation', name: 'Cost Estimation' },
+      { id: 'value_engineering', name: 'Value Engineering Options' }
+    ]
+  },
+  {
     id: 'general',
     name: 'General',
     skills: [
