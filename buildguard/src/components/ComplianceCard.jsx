@@ -13,7 +13,19 @@ const ComplianceCard = ({ item, index }) => {
     const isFail = !isPass && !isNeutral && !isError;
 
     const label = item.description || item.label || 'Unknown Check';
-    const rationale = item.evidence || item.rationale || 'No rationale provided by engine.';
+    const rationale = item.evidence || item.rationale || item.justification || 'No rationale provided by engine.';
+
+    // Safely parse confidence to a decimal 0-1
+    const getConfidence = () => {
+        let val = item.confidence !== undefined ? item.confidence : item.confidence_score;
+        if (val === undefined || val === null || val === '') return null;
+        if (typeof val === 'string') {
+            val = parseFloat(val.replace('%', ''));
+            if (val > 1) val = val / 100; // Handle if they gave "95" instead of "0.95"
+        }
+        return isNaN(val) ? null : val;
+    };
+    const confidenceVal = getConfidence();
 
     // Configure Status Display
     const getStatusConfig = () => {
@@ -62,7 +74,7 @@ const ComplianceCard = ({ item, index }) => {
                     </div>
                 </div>
 
-                {(item.confidence !== undefined || item.confidence_score !== undefined) && (
+                {confidenceVal !== null && (
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{
                             fontFamily: 'var(--font-mono)',
@@ -70,7 +82,7 @@ const ComplianceCard = ({ item, index }) => {
                             fontWeight: '800',
                             color: color
                         }}>
-                            {Math.round((item.confidence ?? item.confidence_score ?? 0) * 100)}%
+                            {Math.round(confidenceVal * 100)}%
                         </div>
                         <div style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase' }}>MATCH</div>
                     </div>

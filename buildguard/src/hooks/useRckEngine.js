@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 /**
  * useRckEngine
@@ -34,6 +34,7 @@ export const useRckEngine = () => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [skills, setSkills] = useState([]);
+  const abortControllerRef = useRef(null);
 
   const fetchSkills = useCallback(async () => {
     try {
@@ -69,10 +70,13 @@ export const useRckEngine = () => {
 
     try {
       const formData = new FormData();
-      formData.append('file', primaryFile);
+      if (primaryFile) formData.append('file', primaryFile);
       if (checklistFile) formData.append('checklist', checklistFile);
       if (skillId) formData.append('skill', skillId);
       if (prompt) formData.append('prompt', prompt);
+
+      // Create a new AbortController for this request
+      abortControllerRef.current = new AbortController();
 
       // Explicit construction domain options
       formData.append('options', JSON.stringify({
@@ -86,7 +90,8 @@ export const useRckEngine = () => {
           'x-api-key': 'rck_live_51e4987fe5d62c5d966a5692d09ef4e1'
           // No Content-Type header - Browser auto-sets multipart/form-data boundary
         },
-        body: formData
+        body: formData,
+        signal: abortControllerRef.current.signal
       });
 
       if (!response.ok) {
@@ -96,13 +101,27 @@ export const useRckEngine = () => {
 
       const result = await response.json();
       setData(result);
+      return result;
     } catch (err) {
-      console.error('RCK Connection Error:', err);
-      setError(err.message);
+      if (err.name === 'AbortError') {
+        console.log('RCK Analysis was cancelled by user.');
+        setError('Analysis stopped by user.');
+      } else {
+        console.error('RCK Connection Error:', err);
+        setError(err.message);
+      }
+      throw err;
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }, []);
 
-  return { performValidation, loading, data, error, skills };
+  const stopValidation = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
+
+  return { performValidation, stopValidation, loading, data, error, skills };
 };
