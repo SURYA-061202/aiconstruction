@@ -18,7 +18,10 @@ import {
     Bot,
     User,
     Download,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Check,
+    Loader,
+    Circle
 } from 'lucide-react';
 import { useRckEngine } from '../hooks/useRckEngine';
 import ComplianceCard from './ComplianceCard';
@@ -53,7 +56,7 @@ const Dashboard = () => {
             setLoadStep(0);
             interval = setInterval(() => {
                 setLoadStep(prev => (prev < loadingSteps.length - 1 ? prev + 1 : prev));
-            }, 6000); 
+            }, 6000);
         } else {
             clearInterval(interval);
         }
@@ -125,25 +128,21 @@ const Dashboard = () => {
                         className="glass-panel"
                         style={{ height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto' }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ padding: '8px', background: 'var(--accent-primary)', borderRadius: '10px', color: '#0B0E14' }}>
-                                    <Cpu size={24} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', height: '64px', borderBottom: '1px solid var(--border-glass)', margin: '-24px -24px 24px -24px', padding: '0 24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '100%' }}>
+                                <div style={{ width: '36px', height: '36px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '50%', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Activity size={20} />
                                 </div>
-                                <div>
-                                    <h1 style={{ fontSize: '15px', fontWeight: '800', letterSpacing: '0.05em' }}>RCK_PORTAL</h1>
-                                    <p style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: '700' }}>DOM_ALL_DOC_SCHEDULER</p>
-                                </div>
+                                <h1 style={{ fontSize: '15px', fontWeight: '800', letterSpacing: '0.05em', display: 'flex', alignItems: 'center' }}>RCK_PORTAL</h1>
                             </div>
-                            <button onClick={() => setSidebarOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                            <button onClick={() => setSidebarOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}>
                                 <PanelLeftClose size={18} />
                             </button>
                         </div>
 
-                        {/* Categorized Skills */}
                         <div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '9px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>
-                                <Settings size={10} /> Agent Skillset
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '12px', letterSpacing: '0.05em' }}>
+                                Agent Skillset
                             </label>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -187,7 +186,7 @@ const Dashboard = () => {
                         {/* Upload Section */}
                         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '9px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                                     Target Plan (PFD/DOCX)
                                 </label>
                                 <div
@@ -204,7 +203,7 @@ const Dashboard = () => {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', fontSize: '9px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                                     Optional Checklist
                                 </label>
                                 <div
@@ -238,16 +237,15 @@ const Dashboard = () => {
             {/* Panel B: Command Center (Middle) */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', borderLeft: '1px solid var(--border-glass)', borderRight: '1px solid var(--border-glass)' }}>
                 <div style={{ height: '64px', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', height: '100%' }}>
                         {!sidebarOpen && (
-                            <button onClick={() => setSidebarOpen(true)} style={{ background: 'transparent', border: '1px solid var(--border-glass)', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                            <button onClick={() => setSidebarOpen(true)} style={{ background: 'transparent', border: '1px solid var(--border-glass)', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <PanelLeftOpen size={14} />
                             </button>
                         )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <MessageSquare size={16} color="var(--accent-primary)" />
-                            <h2 style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                                Command Center
+                        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                            <h2 style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '0.02em', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                                Workspace
                             </h2>
                         </div>
                     </div>
@@ -265,7 +263,6 @@ const Dashboard = () => {
                         {/* Chat History */}
                         {chatHistory.length === 0 && !loading && (
                             <div style={{ textAlign: 'center', marginTop: '100px', opacity: 0.3 }}>
-                                <MessageSquare size={40} style={{ margin: '0 auto 16px' }} />
                                 <h3>How can I help you today?</h3>
                             </div>
                         )}
@@ -410,8 +407,8 @@ const Dashboard = () => {
                                                                 let cleanedJson = match[1].trim();
                                                                 // Strip unescaped line breaks that break JSON.parse
                                                                 cleanedJson = cleanedJson.replace(/\r?\n/g, ' ');
-                                                                 cleanedJson = cleanedJson.replace(/(\{|\,)\s*'([^']+)'\s*:/g, '$1"$2":');
-                                                                 cleanedJson = cleanedJson.replace(/:\s*'([^']+)'/g, ':"$1"');
+                                                                cleanedJson = cleanedJson.replace(/(\{|\,)\s*'([^']+)'\s*:/g, '$1"$2":');
+                                                                cleanedJson = cleanedJson.replace(/:\s*'([^']+)'/g, ':"$1"');
                                                                 if (!cleanedJson.endsWith(']')) {
                                                                     if (cleanedJson.endsWith('}')) cleanedJson += ']';
                                                                     else cleanedJson += '}]';
@@ -422,19 +419,25 @@ const Dashboard = () => {
                                                                     return (
                                                                         <div key={idx} style={{ margin: '16px 0', overflowX: 'auto', border: '1px solid var(--border-glass)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
                                                                             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-glass)' }}>
-                                                                                <button 
+                                                                                <button
                                                                                     onClick={() => {
-                                                                                        const csvString = headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n" + data.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`).join(",")).join("\n");
-                                                                                        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                                                                                        let excelFile = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet 1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border='1'>";
+                                                                                        excelFile += "<tr>" + headers.map(h => `<th style='background-color: #1E3A5F; color: #FFFFFF; font-weight: bold;'>${h.replace(/_/g, ' ')}</th>`).join("") + "</tr>";
+                                                                                        data.forEach(row => {
+                                                                                            excelFile += "<tr>" + headers.map(h => `<td>${(row[h] || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join("") + "</tr>";
+                                                                                        });
+                                                                                        excelFile += "</table></body></html>";
+
+                                                                                        const blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
                                                                                         const url = URL.createObjectURL(blob);
                                                                                         const link = document.createElement("a");
                                                                                         link.href = url;
-                                                                                        link.setAttribute("download", "RCK_Table_Export.csv");
+                                                                                        link.setAttribute("download", "RCK_Export.xls");
                                                                                         link.click();
                                                                                     }}
                                                                                     style={{ padding: '4px 10px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                                                                                 >
-                                                                                    <Download size={11} /> Export CSV
+                                                                                    <Download size={11} /> Export Excel
                                                                                 </button>
                                                                             </div>
                                                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
@@ -466,7 +469,7 @@ const Dashboard = () => {
                                                         const sugText = match ? match[1].trim() : "";
                                                         if (sugText) {
                                                             return (
-                                                                <button 
+                                                                <button
                                                                     key={idx}
                                                                     onClick={() => handleRunAnalysis(sugText)}
                                                                     style={{
@@ -561,11 +564,30 @@ const Dashboard = () => {
                         <AnimatePresence>
                             {loading && (
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="agent-chat-reply loading-pulse" style={{ alignSelf: 'flex-start', width: '100%' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                        <Bot size={14} color="var(--accent-primary)" />
-                                        <h4 style={{ fontSize: '10px', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{loadingSteps[loadStep]}</h4>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', background: 'rgba(56, 189, 248, 0.02)', width: 'fit-content', minWidth: '280px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
+                                            <Bot size={14} color="var(--accent-primary)" />
+                                            <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 'bold', letterSpacing: '0.05em' }}>AGENT ANALYZING...</span>
+                                        </div>
+                                        {loadingSteps.map((step, index) => {
+                                            const isCompleted = index < loadStep;
+                                            const isCurrent = index === loadStep;
+                                            return (
+                                                <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: isCompleted || isCurrent ? 'var(--text-primary)' : 'var(--text-secondary)', opacity: isCompleted || isCurrent ? 1 : 0.4 }}>
+                                                    {isCompleted ? (
+                                                        <Check size={12} color="#10B981" />
+                                                    ) : isCurrent ? (
+                                                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ display: 'flex' }}>
+                                                            <Loader size={12} color="var(--accent-primary)" />
+                                                        </motion.div>
+                                                    ) : (
+                                                        <Circle size={12} color="rgba(255,255,255,0.2)" />
+                                                    )}
+                                                    <span style={{ color: isCompleted ? 'var(--text-muted)' : 'inherit' }}>{step}</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                    <div style={{ height: '40px', maxWidth: '200px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)' }} />
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -576,7 +598,7 @@ const Dashboard = () => {
 
                 {/* Fixed Input Area */}
                 <div style={{ padding: '0 32px 24px 32px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-                    <div style={{ width: '100%', maxWidth: '640px' }}>
+                    <div style={{ width: '100%', maxWidth: '800px' }}>
                         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', fontWeight: '600' }}>AGENT_INSTRUCTIONS</p>
                         <div style={{ position: 'relative' }}>
                             {primaryFile && (
@@ -594,6 +616,7 @@ const Dashboard = () => {
                                     placeholder="Instruct the agent... e.g. 'Identify critical path risks.'"
                                     value={promptText}
                                     onChange={(e) => setPromptText(e.target.value)}
+                                    style={{ minHeight: '60px', paddingRight: loading ? '200px' : '110px' }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -604,7 +627,6 @@ const Dashboard = () => {
                                             handleRunAnalysis();
                                         }
                                     }}
-                                    style={{ minHeight: '90px', paddingRight: loading ? '200px' : '110px' }}
                                 />
                                 <div style={{ position: 'absolute', right: '12px', bottom: '12px', display: 'flex', gap: '8px' }}>
                                     {loading ? (
@@ -645,13 +667,13 @@ const Dashboard = () => {
                 {hasLedgerResults && ledgerOpen && (
                     <motion.div
                         initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 450, opacity: 1 }}
+                        animate={{ width: sidebarOpen ? 450 : 600, opacity: 1 }}
                         exit={{ width: 0, opacity: 0 }}
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="glass-panel"
                         style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
                     >
-                        <div style={{ width: '450px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <div style={{ width: sidebarOpen ? '450px' : '600px', display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div style={{ height: '64px', borderBottom: '1px solid var(--border-glass)', display: 'flex', alignItems: 'center', padding: '0 24px', justifyContent: 'space-between' }}>
                                 <h3 style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Analysis_Ledger</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

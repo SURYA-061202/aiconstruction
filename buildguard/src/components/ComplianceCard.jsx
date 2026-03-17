@@ -23,11 +23,12 @@ const ComplianceCard = ({ item, index }) => {
     const getConfidence = () => {
         let val = item.confidence_score !== undefined ? item.confidence_score : item.confidence;
         if (val === undefined || val === null || val === '') return null;
-        if (typeof val === 'string') {
-            val = parseFloat(val.replace('%', ''));
-            if (val > 1) val = val / 100; // Handle if they gave "95" instead of "0.95"
-        }
-        return isNaN(val) ? null : val;
+        let numVal = typeof val === 'string' ? parseFloat(val.replace('%', '')) : parseFloat(val);
+        
+        if (isNaN(numVal)) return null;
+        if (numVal > 1 && numVal <= 10) return numVal / 10;
+        if (numVal > 10) return numVal / 100;
+        return numVal;
     };
     const confidenceVal = getConfidence();
 
