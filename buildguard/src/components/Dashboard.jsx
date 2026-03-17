@@ -36,20 +36,43 @@ const Dashboard = () => {
     const [chatHistory, setChatHistory] = useState([]);
     const chatEndRef = useRef(null);
 
+    const [loadStep, setLoadStep] = useState(0);
+    const loadingSteps = [
+        "Initializing RCK Intelligence framework...",
+        "Analyzing uploaded documents & plan layouts...",
+        "Executing assigned Personas & Agents Axis triggers...",
+        "Processing compliance validation benchmarks...",
+        "Synthesizing final response summary..."
+    ];
+
     const { performValidation, stopValidation, loading, data, error, skills } = useRckEngine();
+
+    useEffect(() => {
+        let interval;
+        if (loading) {
+            setLoadStep(0);
+            interval = setInterval(() => {
+                setLoadStep(prev => (prev < loadingSteps.length - 1 ? prev + 1 : prev));
+            }, 6000); 
+        } else {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [loading]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [chatHistory, loading]);
 
-    const handleRunAnalysis = async () => {
-        if (!primaryFile && !promptText && !selectedSkill) return;
+    const handleRunAnalysis = async (overridePrompt) => {
+        const activePrompt = typeof overridePrompt === 'string' ? overridePrompt : promptText;
+        if (!primaryFile && !activePrompt && !selectedSkill) return;
 
-        const sentMsg = promptText || (selectedSkill ? `Executing Skill: ${skills.flatMap(c => c.skills).find(s => s.id === selectedSkill)?.name || selectedSkill}` : "Run Analysis");
+        const sentMsg = activePrompt || (selectedSkill ? `Executing Skill: ${skills.flatMap(c => c.skills).find(s => s.id === selectedSkill)?.name || selectedSkill}` : "Run Analysis");
         const userEntry = { role: 'user', content: sentMsg, file: primaryFile?.name, timestamp: new Date() };
 
         setChatHistory(prev => [...prev, userEntry]);
-        const currentPrompt = promptText;
+        const currentPrompt = activePrompt;
         setPromptText('');
 
         try {
@@ -293,8 +316,8 @@ const Dashboard = () => {
                                     {msg.role === 'agent' ? (() => {
                                         if (!msg.content) return null;
 
-                                        // Split by [IMAGE: ...] OR ![alt](url)
-                                        const fragments = msg.content.split(/(\[IMAGE:\s*[\s\S]*?\]|!\[.*?\]\(.*?\))/g);
+                                        // Split by tags: [IMAGE: ...], [TABLE: ...], [SUGGESTION: ...] OR ![alt](url)
+                                        const fragments = msg.content.split(/(\[IMAGE:\s*[\s\S]*?\]|\[TABLE:\s*[\s\S]*?\]|\[SUGGESTION:\s*[\s\S]*?\]|!\[.*?\]\(.*?\))/g);
 
                                         const handleDownload = async (src, alt) => {
                                             try {
@@ -379,6 +402,90 @@ const Dashboard = () => {
                                                         );
                                                     }
 
+                                                    // Case 4: [TABLE: ...]
+                                                    if (frag.startsWith('[TABLE:')) {
+                                                        const match = frag.match(/\[TABLE:\s*([\s\S]*?)\]/i);
+                                                        if (match) {
+                                                            try {
+                                                                let cleanedJson = match[1].trim();
+                                                                // Strip unescaped line breaks that break JSON.parse
+                                                                cleanedJson = cleanedJson.replace(/\r?\n/g, ' ');
+                                                                 cleanedJson = cleanedJson.replace(/(\{|\,)\s*'([^']+)'\s*:/g, '$1"$2":');
+                                                                 cleanedJson = cleanedJson.replace(/:\s*'([^']+)'/g, ':"$1"');
+                                                                if (!cleanedJson.endsWith(']')) {
+                                                                    if (cleanedJson.endsWith('}')) cleanedJson += ']';
+                                                                    else cleanedJson += '}]';
+                                                                }
+                                                                const data = JSON.parse(cleanedJson);
+                                                                if (Array.isArray(data) && data.length > 0) {
+                                                                    const headers = Object.keys(data[0]);
+                                                                    return (
+                                                                        <div key={idx} style={{ margin: '16px 0', overflowX: 'auto', border: '1px solid var(--border-glass)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
+                                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-glass)' }}>
+                                                                                <button 
+                                                                                    onClick={() => {
+                                                                                        const csvString = headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n" + data.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`).join(",")).join("\n");
+                                                                                        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                                                                                        const url = URL.createObjectURL(blob);
+                                                                                        const link = document.createElement("a");
+                                                                                        link.href = url;
+                                                                                        link.setAttribute("download", "RCK_Table_Export.csv");
+                                                                                        link.click();
+                                                                                    }}
+                                                                                    style={{ padding: '4px 10px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                                                >
+                                                                                    <Download size={11} /> Export CSV
+                                                                                </button>
+                                                                            </div>
+                                                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                                                <thead>
+                                                                                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-glass)' }}>
+                                                                                        {headers.map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 'bold', color: 'var(--accent-primary)', textTransform: 'capitalize' }}>{h.replace(/_/g, ' ')}</th>)}
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                    {data.map((row, rIdx) => (
+                                                                                        <tr key={rIdx} style={{ borderBottom: rIdx < data.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+                                                                                            {headers.map(h => <td key={h} style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{row[h]}</td>)}
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            } catch (err) {
+                                                                return <div key={idx} style={{ color: 'var(--accent-red)', fontSize: '11px', margin: '8px 0' }}>[Table Render Error: {err.message}]</div>;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // Case 5: [SUGGESTION: ...]
+                                                    if (frag.startsWith('[SUGGESTION:')) {
+                                                        const match = frag.match(/\[SUGGESTION:\s*([\s\S]*?)\]/i);
+                                                        const sugText = match ? match[1].trim() : "";
+                                                        if (sugText) {
+                                                            return (
+                                                                <button 
+                                                                    key={idx}
+                                                                    onClick={() => handleRunAnalysis(sugText)}
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: '8px',
+                                                                        padding: '8px 16px', background: 'rgba(56, 189, 248, 0.08)',
+                                                                        color: 'var(--accent-primary)', border: '1px solid rgba(56, 189, 248, 0.2)',
+                                                                        borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                                                                        cursor: 'pointer', transition: 'all 0.2s', margin: '4px 8px 4px 0'
+                                                                    }}
+                                                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
+                                                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.08)'; e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.2)'; }}
+                                                                >
+                                                                    <MessageSquare size={13} />
+                                                                    {sugText}
+                                                                </button>
+                                                            );
+                                                        }
+                                                    }
+
                                                     // Case 3: Standard Text
                                                     return (
                                                         <ReactMarkdown
@@ -456,7 +563,7 @@ const Dashboard = () => {
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="agent-chat-reply loading-pulse" style={{ alignSelf: 'flex-start', width: '100%' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                         <Bot size={14} color="var(--accent-primary)" />
-                                        <h4 style={{ fontSize: '10px', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Agent Analyzing...</h4>
+                                        <h4 style={{ fontSize: '10px', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{loadingSteps[loadStep]}</h4>
                                     </div>
                                     <div style={{ height: '40px', maxWidth: '200px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)' }} />
                                 </motion.div>

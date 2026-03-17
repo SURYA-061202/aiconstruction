@@ -10,39 +10,7 @@ const FALLBACK_SKILLS = [
     name: 'Construction Scheduler',
     skills: [
       { id: 'schedule_analysis', name: 'Schedule Analysis' },
-      { id: 'resource_optimization', name: 'Resource Optimization' },
-      { id: 'safety_compliance', name: 'Safety Compliance' },
-      { id: 'risk_mitigation', name: 'Risk Mitigation' },
-      { id: 'progress_tracking', name: 'Progress Tracking' },
-      { id: 'cost_control', name: 'Cost Control' }
-    ]
-  },
-  {
-    id: 'drawing',
-    name: 'Drawing Checker Agent',
-    skills: [
-      { id: 'architectural_review', name: 'Architectural Design Review' },
-      { id: 'structural_integrity', name: 'Structural Integrity Check' },
-      { id: 'mep_clash_detection', name: 'MEP Clash Detection' }
-    ]
-  },
-  {
-    id: 'boq',
-    name: 'BOQ Agent',
-    skills: [
-      { id: 'takeoff_analysis', name: 'Quantity Takeoff Analysis' },
-      { id: 'cost_estimation', name: 'Cost Estimation' },
-      { id: 'value_engineering', name: 'Value Engineering Options' }
-    ]
-  },
-  {
-    id: 'general',
-    name: 'General',
-    skills: [
-      { id: 'document_analysis', name: 'Document Analysis' },
-      { id: 'data_extraction', name: 'Data Extraction' },
-      { id: 'data_comparison', name: 'Data Comparison' },
-      { id: 'summarization', name: 'Summarization' }
+      { id: 'automated_schedule_generation', name: 'Automated Schedule Generation' }
     ]
   }
 ];
