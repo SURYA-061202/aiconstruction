@@ -1,858 +1,967 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Activity,
-    FileUp,
-    Zap,
-    Layout,
-    FileIcon,
-    ShieldAlert,
-    FileText,
-    MessageSquare,
-    Settings,
-    ClipboardCheck,
-    Cpu,
-    ChevronDown,
-    ChevronUp,
-    AlertCircle,
-    Bot,
-    User,
-    Download,
-    Image as ImageIcon,
-    Check,
-    Loader,
-    Circle,
-    Edit3
+    Activity, FileUp, Zap, FileIcon, FileText,
+    MessageSquare, ClipboardCheck, ChevronDown,
+    AlertCircle, Bot, User, Download, Image as ImageIcon,
+    Check, Loader, Circle, Edit3, Sparkles, X,
+    PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { useRckEngine } from '../hooks/useRckEngine';
 import ComplianceCard from './ComplianceCard';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS — Warm Ivory / Ink-Blue
+═══════════════════════════════════════════ */
+const C = {
+    canvas: '#F7F4EF',
+    surface: '#FDFCFA',
+    surfaceAlt: '#F0EDE6',
+    ink: '#1C2340',
+    inkLight: '#3D4A6B',
+    inkMuted: '#8A93A8',
+    inkFaint: '#C8CCDA',
+    accentBlue: '#1D3FA5',
+    accentTeal: '#0F8A7E',
+    accentRed: '#C53030',
+    accentAmber: '#B45309',
+    accentGreen: '#166534',
+    shadow: '0 1px 3px rgba(28,35,64,0.08), 0 4px 12px rgba(28,35,64,0.04)',
+    shadowMd: '0 4px 16px rgba(28,35,64,0.10), 0 1px 4px rgba(28,35,64,0.06)',
+    shadowLg: '0 12px 40px rgba(28,35,64,0.14), 0 2px 8px rgba(28,35,64,0.06)',
+    fontDisplay: '\'Playfair Display\', Georgia, serif',
+    fontBody: '\'DM Sans\', \'Helvetica Neue\', sans-serif',
+    fontMono: '\'JetBrains Mono\', \'Fira Code\', monospace',
+};
+
+/* ═══════════════════════════════════════════
+   PRIMITIVES
+═══════════════════════════════════════════ */
+const Label = ({ children, style }) => (
+    <p style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+        color: C.inkMuted, fontFamily: C.fontMono, marginBottom: 8, ...style
+    }}>
+        {children}
+    </p>
+);
+
+const Chip = ({ children, color = C.accentBlue }) => (
+    <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px',
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+        fontFamily: C.fontMono, background: `${color}12`, color, borderRadius: 3,
+        border: `1px solid ${color}25`
+    }}>
+        {children}
+    </span>
+);
+
+const StatusDot = ({ live }) => (
+    <span style={{ position: 'relative', display: 'inline-flex', width: 8, height: 8 }}>
+        {live && <span style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: C.accentAmber, animation: 'rck-ping 1.4s ease-in-out infinite'
+        }} />}
+        <span style={{
+            width: 8, height: 8, borderRadius: '50%', display: 'block',
+            background: live ? C.accentAmber : C.accentGreen
+        }} />
+    </span>
+);
+
+const UploadZone = ({ file, onFile, id, label, Icon, color }) => (
+    <div>
+        <Label>{label}</Label>
+        <div onClick={() => document.getElementById(id).click()}
+            style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px',
+                borderRadius: 8, cursor: 'pointer', border: `1.5px dashed ${file ? color : C.inkFaint}`,
+                background: file ? `${color}07` : C.surfaceAlt, transition: 'all 0.18s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.background = `${color}10`; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = file ? color : C.inkFaint; e.currentTarget.style.background = file ? `${color}07` : C.surfaceAlt; }}>
+            <input type="file" id={id} style={{ display: 'none' }} onChange={e => onFile(e.target.files[0])} />
+            <Icon size={14} color={file ? color : C.inkMuted} />
+            <span style={{
+                flex: 1, fontSize: 11, fontWeight: 500, color: file ? C.ink : C.inkMuted,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+            }}>
+                {file ? file.name : 'Choose file…'}
+            </span>
+            {file && (
+                <button onClick={e => { e.stopPropagation(); onFile(null); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMuted, padding: 0 }}>
+                    <X size={11} />
+                </button>
+            )}
+        </div>
+    </div>
+);
+
+const SmallBtn = ({ children, onClick }) => (
+    <button onClick={onClick}
+        style={{
+            padding: '4px 12px', background: C.accentBlue, color: '#fff', border: 'none',
+            borderRadius: 5, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: C.fontBody
+        }}>
+        {children}
+    </button>
+);
+
+/* ═══════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════ */
 const Dashboard = () => {
     const [primaryFile, setPrimaryFile] = useState(null);
     const [checklistFile, setChecklistFile] = useState(null);
     const [selectedSkill, setSelectedSkill] = useState('');
     const [promptText, setPromptText] = useState('');
-    const [expandedCategories, setExpandedCategories] = useState([]);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [ledgerOpen, setLedgerOpen] = useState(true);
     const [chatHistory, setChatHistory] = useState([]);
     const [isParamModalOpen, setIsParamModalOpen] = useState(false);
-    const [pendingSugText, setPendingSugText] = useState("");
+    const [pendingSugText, setPendingSugText] = useState('');
     const [requiredFields, setRequiredFields] = useState([]);
     const [paramsData, setParamsData] = useState({});
+    const [loadStep, setLoadStep] = useState(0);
     const chatEndRef = useRef(null);
 
-    const [loadStep, setLoadStep] = useState(0);
     const loadingSteps = [
-        "Initializing RCK Intelligence framework...",
-        "Analyzing uploaded documents & plan layouts...",
-        "Executing assigned Personas & Agents Axis triggers...",
-        "Processing compliance validation benchmarks...",
-        "Synthesizing final response summary..."
+        'Initializing RCK Intelligence framework…',
+        'Analyzing uploaded documents & plan layouts…',
+        'Executing assigned Personas & Agents Axis…',
+        'Processing compliance validation benchmarks…',
+        'Synthesizing final response summary…',
     ];
 
     const { performValidation, stopValidation, loading, data, error, skills } = useRckEngine();
 
     useEffect(() => {
-        let interval;
+        let t;
         if (loading) {
             setLoadStep(0);
-            interval = setInterval(() => {
-                setLoadStep(prev => (prev < loadingSteps.length - 1 ? prev + 1 : prev));
-            }, 6000);
-        } else {
-            clearInterval(interval);
+            t = setInterval(() => setLoadStep(p => p < loadingSteps.length - 1 ? p + 1 : p), 6000);
         }
-        return () => clearInterval(interval);
+        return () => clearInterval(t);
     }, [loading]);
 
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [chatHistory, loading]);
+    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, loading]);
 
-    const handleRunAnalysis = async (overridePrompt) => {
-        const activePrompt = typeof overridePrompt === 'string' ? overridePrompt : promptText;
-        if (!primaryFile && !activePrompt && !selectedSkill) return;
-
-        const sentMsg = activePrompt || (selectedSkill ? `Executing Skill: ${skills.flatMap(c => c.skills).find(s => s.id === selectedSkill)?.name || selectedSkill}` : "Run Analysis");
-        const userEntry = { role: 'user', content: sentMsg, file: primaryFile?.name, timestamp: new Date() };
-
-        setChatHistory(prev => [...prev, userEntry]);
-        const currentPrompt = activePrompt;
+    const handleRunAnalysis = async (override) => {
+        const prompt = typeof override === 'string' ? override : promptText;
+        if (!primaryFile && !prompt && !selectedSkill) return;
+        const label = prompt || (selectedSkill
+            ? `Executing Skill: ${skills.flatMap(c => c.skills).find(s => s.id === selectedSkill)?.name || selectedSkill}`
+            : 'Run Analysis');
+        setChatHistory(p => [...p, { role: 'user', content: label, file: primaryFile?.name, timestamp: new Date() }]);
         setPromptText('');
-
         try {
-            const resultData = await performValidation({
-                primaryFile,
-                skillId: selectedSkill,
-                prompt: currentPrompt,
-                checklistFile
-            });
-
-            if (resultData?.chat_response) {
-                setChatHistory(prev => [...prev, { role: 'agent', content: resultData.chat_response, timestamp: new Date() }]);
-            }
-        } catch (err) {
-            if (err.message !== 'Analysis stopped by user.') {
-                setChatHistory(prev => [...prev, { role: 'system', content: `Error: ${err.message}`, isError: true, timestamp: new Date() }]);
-            }
+            const res = await performValidation({ primaryFile, skillId: selectedSkill, prompt, checklistFile });
+            if (res?.chat_response)
+                setChatHistory(p => [...p, { role: 'agent', content: res.chat_response, timestamp: new Date() }]);
+        } catch (e) {
+            if (e.message !== 'Analysis stopped by user.')
+                setChatHistory(p => [...p, { role: 'system', content: `Error: ${e.message}`, isError: true, timestamp: new Date() }]);
         }
     };
 
-    const toggleCategory = (catId) => {
-        setExpandedCategories(prev =>
-            prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+    const axis2 = data?.axis_detail?.axis2_output?.compliance || data?.axis2_output?.compliance || data?.checklist_results || [];
+    const axis3 = data?.axis_detail?.axis3_output || data?.axis3_output || [];
+    const results = [...axis2, ...axis3];
+    const violations = results.filter(i => i.status === 'FAIL').length;
+    const esreRaw = data?.verdict?.confidence_score || data?.esre_score;
+    const esreScore = esreRaw ? Math.round(esreRaw * 100) : null;
+    const hasLedger = results.length > 0 || (loading && primaryFile) || (!data && primaryFile);
+
+    const dlImage = async (src, alt) => {
+        try {
+            const r = await fetch(src); if (!r.ok) throw new Error();
+            const ct = r.headers.get('content-type') || '';
+            const ext = ct.includes('webp') ? 'webp' : ct.includes('png') ? 'png' : 'jpg';
+            const blob = await r.blob();
+            const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${(alt || 'img').replace(/\W/g, '_')}.${ext}` });
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } catch { alert('Download failed.'); }
+    };
+
+    const exportExcel = (rows, headers) => {
+        let h = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet1</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>";
+        h += '<tr>' + headers.map(k => `<th>${k.replace(/_/g, ' ')}</th>`).join('') + '</tr>';
+        rows.forEach(r => { h += '<tr>' + headers.map(k => `<td>${(r[k] || '').toString()}</td>`).join('') + '</tr>'; });
+        h += '</table></body></html>';
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([h], { type: 'application/vnd.ms-excel' })), download: 'RCK_Export.xls' });
+        a.click();
+    };
+
+    const dlPDF = (msg, name) => {
+        try {
+            if (window.jspdf?.jsPDF) {
+                const d = new window.jspdf.jsPDF();
+                d.setFontSize(14); d.setFont('helvetica', 'bold'); d.text(name, 15, 20);
+                d.setFontSize(10); d.setFont('helvetica', 'normal');
+                const lines = d.splitTextToSize(msg.content.replace(/[*#`_~>\[\]]/g, '').trim(), 180);
+                let y = 32; lines.forEach(l => { if (y > 280) { d.addPage(); y = 20; } d.text(l, 15, y); y += 6; });
+                d.save(`${name.replace(/\s+/g, '_')}.pdf`);
+            } else throw new Error();
+        } catch { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([msg.content], { type: 'text/plain' })), download: 'RCK_Document.txt' }); a.click(); }
+    };
+
+    const renderAgent = (msg) => {
+        const frags = msg.content.split(/(\[IMAGE:\s*[\s\S]*?\]|\[TABLE:\s*[\s\S]*?\]\s*\]|\[SUGGESTION:\s*[\s\S]*?\]|\[REFINE_FORM:[\s\S]*?\]\s*\]|!\[.*?\]\(.*?\))/g);
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {frags.map((f, i) => {
+                    if (!f) return null;
+
+                    if (f.startsWith('[IMAGE:')) {
+                        const m = f.match(/\[IMAGE:\s*([\s\S]*?)\]/i);
+                        const desc = m?.[1]?.trim() || 'Image';
+                        const short = desc.length > 50 ? desc.slice(0, 50) : desc;
+                        let seed = 0; for (let ch of desc) seed = ch.charCodeAt(0) + ((seed << 5) - seed);
+                        const url = `http://localhost:8000/v1/proxy-image?url=${encodeURIComponent(`https://image.pollinations.ai/prompt/${encodeURIComponent(short + ', construction')}?width=800&height=400&nologo=true&seed=${Math.abs(seed)}`)}&msgIdx=${i}`;
+                        return (
+                            <div key={i} style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.inkFaint}`, boxShadow: C.shadow }}>
+                                <img src={url} alt={short} style={{ width: '100%', display: 'block', maxHeight: 360, objectFit: 'cover' }} />
+                                <div style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.surfaceAlt }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.inkMuted }}><ImageIcon size={12} /> {short}</div>
+                                    <SmallBtn onClick={() => dlImage(url, short)}>Download</SmallBtn>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    if (f.startsWith('![')) {
+                        const m = f.match(/!\[(.*?)\]\((.*?)\)/s);
+                        const alt = m?.[1] || 'Image', src0 = m?.[2] || '';
+                        const src = src0 && !src0.startsWith('http') ? `http://localhost:8000/v1/proxy-image?url=${encodeURIComponent(src0)}` : src0;
+                        return (
+                            <div key={i} style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.inkFaint}`, boxShadow: C.shadow }}>
+                                <img src={src} alt={alt} style={{ width: '100%', display: 'block', maxHeight: 360, objectFit: 'cover' }} />
+                                <div style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.surfaceAlt }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.inkMuted }}><ImageIcon size={12} />{alt}</div>
+                                    <SmallBtn onClick={() => dlImage(src, alt)}>Download</SmallBtn>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    if (f.startsWith('[TABLE:')) {
+                        const m = f.match(/\[TABLE:\s*([\s\S]*?)\]/i);
+                        if (m) try {
+                            let raw = m[1].trim().replace(/\r?\n/g, ' ').replace(/(\{|,)\s*'([^']+)'\s*:/g, '$1"$2":').replace(/:\s*'([^']+)'/g, ':"$1"');
+                            if (!raw.endsWith(']')) raw += raw.endsWith('}') ? ']' : '}]';
+                            const rows = JSON.parse(raw);
+                            if (Array.isArray(rows) && rows.length) {
+                                const hdrs = Object.keys(rows[0]);
+                                return (
+                                    <div key={i} style={{ border: `1px solid ${C.inkFaint}`, borderRadius: 10, overflow: 'hidden', boxShadow: C.shadow }}>
+                                        <div style={{ padding: '8px 14px', background: C.surfaceAlt, borderBottom: `1px solid ${C.inkFaint}`, display: 'flex', justifyContent: 'flex-end' }}>
+                                            <button onClick={() => exportExcel(rows, hdrs)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px',
+                                                    background: `${C.accentBlue}10`, color: C.accentBlue,
+                                                    border: `1px solid ${C.accentBlue}30`, borderRadius: 5,
+                                                    fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: C.fontBody
+                                                }}>
+                                                <Download size={10} /> Export Excel
+                                            </button>
+                                        </div>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                                <thead>
+                                                    <tr style={{ background: `${C.accentBlue}06` }}>
+                                                        {hdrs.map(h => (
+                                                            <th key={h} style={{
+                                                                padding: '10px 14px', textAlign: 'left', fontSize: 9, fontWeight: 700,
+                                                                fontFamily: C.fontMono, letterSpacing: '0.1em', textTransform: 'uppercase',
+                                                                color: C.accentBlue, borderBottom: `1px solid ${C.inkFaint}`
+                                                            }}>
+                                                                {h.replace(/_/g, ' ')}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {rows.map((row, ri) => (
+                                                        <tr key={ri} style={{ background: ri % 2 === 0 ? 'transparent' : C.surfaceAlt, borderBottom: ri < rows.length - 1 ? `1px solid ${C.inkFaint}` : 'none' }}>
+                                                            {hdrs.map(h => <td key={h} style={{ padding: '9px 14px', color: C.inkLight, fontSize: 12 }}>{row[h]}</td>)}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            }
+                        } catch (e) { return <div key={i} style={{ color: C.accentRed, fontSize: 11 }}>[Table Error: {e.message}]</div>; }
+                    }
+
+                    if (f.startsWith('[SUGGESTION:')) {
+                        const m = f.match(/\[SUGGESTION:\s*([\s\S]*?)\]/i);
+                        const sug = m?.[1]?.trim(); if (!sug) return null;
+                        return (
+                            <button key={i} onClick={() => handleRunAnalysis(sug)}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 7,
+                                    padding: '7px 16px', background: `${C.accentBlue}08`,
+                                    color: C.accentBlue, border: `1px solid ${C.accentBlue}25`,
+                                    borderRadius: 10, alignSelf: 'flex-start', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                                    transition: 'all 0.15s', margin: '2px 6px 2px 0', fontFamily: C.fontBody
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = `${C.accentBlue}15`; e.currentTarget.style.borderColor = `${C.accentBlue}50`; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = `${C.accentBlue}08`; e.currentTarget.style.borderColor = `${C.accentBlue}25`; }}>
+                                <Sparkles size={11} />{sug}
+                            </button>
+                        );
+                    }
+
+                    if (f.startsWith('[REFINE_FORM:')) {
+                        const m = f.match(/\[REFINE_FORM:\s*([\s\S]*?)\]\s*\]/i);
+                        const content = m?.[1]?.trim(); if (!content) return null;
+                        try {
+                            let fields = [];
+                            try { fields = JSON.parse(content.replace(/[\u201C\u201D\u2018\u2019]/g, '"')); }
+                            catch { fields = content.replace(/[\[\]]/g, '').split(',').map(f2 => f2.trim().replace(/^["']|["']$/g, '')).filter(Boolean); }
+                            return (
+                                <div key={i} style={{ alignSelf: 'flex-start' }}>
+                                    <button onClick={() => { setPendingSugText('Refine request with parameters:'); setRequiredFields(fields); setParamsData({}); setIsParamModalOpen(true); }}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                                            padding: '8px 18px', background: `${C.accentTeal}10`,
+                                            color: C.accentTeal, border: `1px solid ${C.accentTeal}35`,
+                                            borderRadius: 10, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                            transition: 'background 0.15s', fontFamily: C.fontBody
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = `${C.accentTeal}20`}
+                                        onMouseLeave={e => e.currentTarget.style.background = `${C.accentTeal}10`}>
+                                        <Edit3 size={12} /> Fill Details Form
+                                    </button>
+                                </div>
+                            );
+                        } catch (e) { return <div key={i} style={{ color: C.accentRed, fontSize: 11 }}>[Form Error: {e.message}]</div>; }
+                    }
+
+                    return (
+                        <ReactMarkdown key={i}
+                            components={{
+                                a: ({ node, ...props }) => {
+                                    const isDoc = String(props.children).toLowerCase().includes('download') || props.href?.includes('.pdf') || props.href === '#';
+                                    if (isDoc) return (
+                                        <div style={{
+                                            margin: '8px 0', padding: '12px 16px', border: `1px solid ${C.inkFaint}`,
+                                            borderRadius: 10, background: C.surface, display: 'flex',
+                                            justifyContent: 'space-between', alignItems: 'center', boxShadow: C.shadow
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                <div style={{ padding: 10, background: `${C.accentBlue}10`, borderRadius: 8, color: C.accentBlue }}><FileText size={16} /></div>
+                                                <div>
+                                                    <p style={{ fontSize: 12, fontWeight: 700, color: C.ink, margin: 0 }}>{props.children}</p>
+                                                    <p style={{ fontSize: 10, color: C.inkMuted, margin: '2px 0 0' }}>Generated Document · PDF</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={e => { e.preventDefault(); dlPDF(msg, String(props.children)); }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px',
+                                                    background: C.accentBlue, color: '#fff', border: 'none', borderRadius: 7,
+                                                    fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: C.fontBody
+                                                }}>
+                                                <Download size={12} /> PDF
+                                            </button>
+                                        </div>
+                                    );
+                                    return <a {...props} style={{ color: C.accentBlue, textDecoration: 'underline' }} />;
+                                }
+                            }}>
+                            {f}
+                        </ReactMarkdown>
+                    );
+                })}
+            </div>
         );
     };
 
-    // Data Extraction and Organization
-    const axis2Results = data?.axis_detail?.axis2_output?.compliance || data?.axis2_output?.compliance || data?.checklist_results || [];
-    const axis3Results = data?.axis_detail?.axis3_output || data?.axis3_output || [];
-    const finalResults = [...axis2Results, ...axis3Results];
-
-    const violationsCount = finalResults.filter(item => item.status === 'FAIL').length;
-    const esreScore = data?.verdict?.confidence_score || data?.esre_score;
-    const esreScoreValue = esreScore ? Math.round(esreScore * 100) : (data?.verdict?.confidence_score ? Math.round(data.verdict.confidence_score * 100) : null);
-
-    // Determine if the ledger should be visible
-    const hasLedgerResults = finalResults.length > 0 || (loading && primaryFile) || (!data && primaryFile);
-
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)' }}>
+        <>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600;700&display=swap');
+                *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                @keyframes rck-ping { 0%{transform:scale(1);opacity:0.6} 70%{transform:scale(2.2);opacity:0} 100%{opacity:0} }
+                @keyframes rck-spin { to{transform:rotate(360deg)} }
+                .rck-scroll::-webkit-scrollbar{width:4px}
+                .rck-scroll::-webkit-scrollbar-track{background:transparent}
+                .rck-scroll::-webkit-scrollbar-thumb{background:${C.inkFaint};border-radius:2px}
+                .rck-scroll::-webkit-scrollbar-thumb:hover{background:${C.inkMuted}}
+                .rck-prose{font-family:${C.fontBody};color:${C.inkLight};line-height:1.75;font-size:13.5px}
+                .rck-prose p{margin:0 0 10px;color:${C.inkLight}}
+                .rck-prose p:last-child{margin-bottom:0}
+                .rck-prose h1,.rck-prose h2,.rck-prose h3{font-family:${C.fontDisplay};color:${C.ink};margin:20px 0 8px;font-weight:700;line-height:1.3}
+                .rck-prose h1{font-size:20px}.rck-prose h2{font-size:17px}.rck-prose h3{font-size:14px}
+                .rck-prose ul,.rck-prose ol{padding-left:22px;margin:8px 0 12px;color:${C.inkLight};font-size:13px;line-height:1.7}
+                .rck-prose li{margin-bottom:5px}
+                .rck-prose strong{color:${C.ink};font-weight:700}
+                .rck-prose em{color:${C.inkLight};font-style:italic}
+                .rck-prose code{background:${C.surfaceAlt};color:${C.accentBlue};padding:2px 6px;border-radius:4px;font-size:11.5px;font-family:${C.fontMono};border:1px solid ${C.inkFaint}}
+                .rck-prose pre{background:${C.surfaceAlt};border:1px solid ${C.inkFaint};border-radius:8px;padding:14px 16px;overflow-x:auto;margin:12px 0}
+                .rck-prose pre code{background:none;padding:0;border:none;font-size:12px;color:${C.inkLight}}
+                .rck-prose blockquote{border-left:3px solid ${C.accentBlue};padding:8px 16px;margin:10px 0;background:${C.surfaceAlt};border-radius:0 6px 6px 0;color:${C.inkLight}}
+                .rck-prose a{color:${C.accentBlue};text-decoration:underline}
+                .rck-prose hr{border:none;border-top:1px solid ${C.inkFaint};margin:16px 0}
+                .prompt-box{width:100%;min-height:60px;padding:14px 136px 14px 16px;background:${C.surface};border:1.5px solid ${C.inkFaint};border-radius:12px;color:${C.ink};font-size:13.5px;font-family:${C.fontBody};line-height:1.6;resize:none;outline:none;transition:border-color .2s,box-shadow .2s;box-shadow:0 1px 4px rgba(28,35,64,0.04)}
+                .prompt-box:focus{border-color:${C.accentBlue};box-shadow:0 0 0 3px ${C.accentBlue}14,0 1px 4px rgba(28,35,64,0.06)}
+                .prompt-box::placeholder{color:${C.inkMuted}}
+                .exec-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:${C.accentBlue};color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:${C.fontBody};letter-spacing:.03em;transition:all .15s;white-space:nowrap}
+                .exec-btn:hover{background:#1534a0;transform:translateY(-1px);box-shadow:0 4px 14px ${C.accentBlue}40}
+                .stop-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;background:#fff;color:${C.accentRed};border:1.5px solid ${C.accentRed}40;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:${C.fontBody};transition:all .15s}
+                .stop-btn:hover{background:${C.accentRed}08}
+                .skill-select{width:100%;padding:9px 32px 9px 12px;background:${C.surface};border:1.5px solid ${C.inkFaint};border-radius:8px;color:${C.ink};font-size:12px;font-family:${C.fontBody};cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;transition:border-color .2s;box-shadow:0 1px 3px rgba(28,35,64,0.04)}
+                .skill-select:focus{border-color:${C.accentBlue}}
+                .skill-select option,.skill-select optgroup{background:${C.surface};color:${C.ink}}
+                .modal-input{width:100%;padding:10px 13px;background:${C.surface};border:1.5px solid ${C.inkFaint};border-radius:8px;color:${C.ink};font-size:12px;font-family:${C.fontBody};outline:none;transition:border-color .2s,box-shadow .2s}
+                .modal-input:focus{border-color:${C.accentBlue};box-shadow:0 0 0 3px ${C.accentBlue}12}
+                .modal-input::placeholder{color:${C.inkMuted}}
+                .sidebar-nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;transition:background .15s;border:none;background:transparent;width:100%;text-align:left;font-family:${C.fontBody}}
+                .sidebar-nav-item:hover{background:${C.surfaceAlt}}
+            `}</style>
 
-            {/* Panel A: Configuration (Left) - Glassmorphism UI */}
-            <AnimatePresence>
-                {sidebarOpen && (
-                    <motion.div
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 320, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                        className="glass-panel"
-                        style={{ height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto', background: 'var(--bg-deep)', color: 'var(--text-primary)' }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', height: '64px', margin: '-24px -24px 24px -24px', padding: '0 24px', position: 'relative' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '100%' }}>
-                                <div style={{ width: '36px', height: '36px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '50%', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Activity size={20} />
-                                </div>
-                                <h1 style={{ fontSize: '15px', fontWeight: '800', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', color: 'var(--text-primary)' }}>RCK_PORTAL</h1>
-                            </div>
-                            <button onClick={() => setSidebarOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}>
-                                <PanelLeftClose size={18} />
-                            </button>
-                            <div style={{ position: 'absolute', bottom: 0, left: '24px', right: '24px', height: '1px', background: 'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 100%)' }} />
-                        </div>
+            <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: C.canvas, fontFamily: C.fontBody, color: C.ink }}>
 
-                        <div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                Agent Skillset
-                            </label>
+                {/* ══════════ SIDEBAR ══════════ */}
+                <AnimatePresence>
+                    {sidebarOpen && (
+                        <motion.aside
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 284, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: 'easeInOut' }}
+                            style={{
+                                height: '100%', background: C.surface,
+                                borderRight: `1px solid ${C.inkFaint}`, flexShrink: 0, overflow: 'hidden',
+                                boxShadow: '2px 0 16px rgba(28,35,64,0.06)'
+                            }}>
+                            <div className="rck-scroll" style={{ width: 284, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                {skills.length > 0 ? (
-                                    <div style={{ position: 'relative' }}>
-                                        <select
-                                            value={selectedSkill}
-                                            onChange={(e) => setSelectedSkill(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                padding: '9px 32px 9px 12px',
-                                                borderRadius: '8px',
-                                                background: '#FFFFFF',
-                                                color: 'var(--text-primary)',
-                                                border: '1px solid var(--border-glass)',
-                                                outline: 'none',
-                                                fontFamily: 'var(--font-family)',
-                                                fontSize: '11px',
-                                                cursor: 'pointer',
-                                                appearance: 'none',
-                                                WebkitAppearance: 'none'
-                                            }}
-                                        >
-                                            <option value="" style={{ background: '#FFFFFF', color: 'var(--text-muted)' }}>Select a Planning Agent Skill...</option>
-                                            {skills.map(category => (
-                                                <optgroup key={category.id} label={category.name.toUpperCase()} style={{ background: '#FFFFFF', color: 'var(--text-primary)', fontWeight: 'bold' }}>
-                                                    {category.skills.map(skill => (
-                                                        <option key={skill.id} value={skill.id} style={{ background: '#FFFFFF', color: 'var(--text-secondary)' }}>
-                                                            {skill.name}
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
-                                            ))}
-                                        </select>
-                                        <ChevronDown size={14} color="var(--text-muted)" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                                {/* Logo / Wordmark */}
+                                <div style={{
+                                    height: 64, padding: '0 20px', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'space-between', borderBottom: `1px solid ${C.inkFaint}`
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                                        <div style={{
+                                            width: 34, height: 34, borderRadius: 9,
+                                            background: `linear-gradient(135deg, ${C.accentBlue} 0%, #2B5CE6 100%)`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            boxShadow: `0 4px 14px ${C.accentBlue}35`
+                                        }}>
+                                            <Activity size={17} color="#fff" />
+                                        </div>
+                                        <div>
+                                            <p style={{
+                                                fontSize: 14, fontWeight: 700, fontFamily: C.fontDisplay,
+                                                color: C.ink, lineHeight: 1.1, letterSpacing: '-0.01em'
+                                            }}>RCK Portal</p>
+                                            <p style={{
+                                                fontSize: 8, fontFamily: C.fontMono, color: C.inkMuted,
+                                                letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1
+                                            }}>
+                                                Intelligence Engine
+                                            </p>
+                                        </div>
                                     </div>
-                                ) : null}
-                            </div>
-                        </div>
+                                    <button onClick={() => setSidebarOpen(false)}
+                                        style={{
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            color: C.inkMuted, display: 'flex', padding: 5, borderRadius: 6,
+                                            transition: 'color .15s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.color = C.ink}
+                                        onMouseLeave={e => e.currentTarget.style.color = C.inkMuted}>
+                                        <PanelLeftClose size={15} />
+                                    </button>
+                                </div>
 
-                        {/* Upload Section */}
-                        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                    Target Plan (PFD/DOCX)
-                                </label>
-                                <div
-                                    className="glass-card"
-                                    style={{ padding: '12px', textAlign: 'center', cursor: 'pointer', borderRadius: '10px', background: '#F8FAFC', border: '1px solid var(--border-glass)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}
-                                    onClick={() => document.getElementById('primary-upload').click()}
-                                >
-                                    <input type="file" id="primary-upload" style={{ display: 'none' }} onChange={(e) => setPrimaryFile(e.target.files[0])} />
-                                    <FileUp size={16} color={primaryFile ? '#38BDF8' : '#64748B'} style={{ marginBottom: '4px' }} />
-                                    <p style={{ fontSize: '10px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {primaryFile ? primaryFile.name : 'Target Plan'}
-                                    </p>
+                                {/* Content */}
+                                <div style={{ padding: '24px 18px', display: 'flex', flexDirection: 'column', gap: 26, flex: 1 }}>
+
+                                    {/* Skillset */}
+                                    <div>
+                                        <Label>Agent Skillset</Label>
+                                        {skills.length > 0 && (
+                                            <div style={{ position: 'relative' }}>
+                                                <select value={selectedSkill} onChange={e => setSelectedSkill(e.target.value)} className="skill-select">
+                                                    <option value="">Select a Planning Agent Skill…</option>
+                                                    {skills.map(cat => (
+                                                        <optgroup key={cat.id} label={cat.name.toUpperCase()}>
+                                                            {cat.skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                        </optgroup>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown size={12} color={C.inkMuted} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Divider */}
+                                    <div style={{ height: 1, background: C.inkFaint }} />
+
+                                    {/* Uploads */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <UploadZone file={primaryFile} onFile={setPrimaryFile} id="primary-upload"
+                                            label="Target Plan (PDF/DOCX)" Icon={FileUp} color={C.accentBlue} />
+                                        <UploadZone file={checklistFile} onFile={setChecklistFile} id="checklist-upload"
+                                            label="Optional Checklist" Icon={ClipboardCheck} color={C.accentTeal} />
+                                    </div>
+
+                                    <div style={{ flex: 1 }} />
+
+                                    {/* Engine status */}
+                                    <div style={{
+                                        padding: '13px 15px', background: loading ? `${C.accentAmber}08` : `${C.accentGreen}08`,
+                                        borderRadius: 10, border: `1px solid ${loading ? C.accentAmber : C.accentGreen}25`
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                            <StatusDot live={loading} />
+                                            <span style={{
+                                                fontSize: 9, fontWeight: 700, fontFamily: C.fontMono, letterSpacing: '0.12em',
+                                                color: loading ? C.accentAmber : C.accentGreen
+                                            }}>
+                                                {loading ? 'STREAMING_SESSION' : 'RCK_READY'}
+                                            </span>
+                                        </div>
+                                        <p style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono, letterSpacing: '0.06em' }}>
+                                            PLUGIN: ALL-DOC-DRAWINGS-V1
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
 
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                    Optional Checklist
-                                </label>
-                                <div
-                                    className="glass-card"
-                                    style={{ padding: '12px', textAlign: 'center', cursor: 'pointer', borderRadius: '10px', background: '#F8FAFC', border: '1px solid var(--border-glass)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}
-                                    onClick={() => document.getElementById('checklist-upload').click()}
-                                >
-                                    <input type="file" id="checklist-upload" style={{ display: 'none' }} onChange={(e) => setChecklistFile(e.target.files[0])} />
-                                    <ClipboardCheck size={16} color={checklistFile ? '#2DD4BF' : '#64748B'} style={{ marginBottom: '4px' }} />
-                                    <p style={{ fontSize: '10px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {checklistFile ? checklistFile.name : 'Checklist File'}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                {/* ══════════ WORKSPACE ══════════ */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
-                        {/* Engine Info */}
-                        <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--border-glass)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: loading ? '#FB923C' : '#34D399' }} />
-                                <span style={{ fontSize: '9px', fontWeight: '800', color: loading ? '#FB923C' : '#34D399' }}>{loading ? 'STREAMING_SESSION' : 'RCK_READY'}</span>
-                            </div>
-                            <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                                PLUGIN: ALL-DOC-DRAWINGS-V1
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Panel B: Command Center (Middle) */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', borderRight: '1px solid var(--border-glass)' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '1px', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0) 100%)', zIndex: 10 }} />
-                <div style={{ height: '64px', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', height: '100%' }}>
-                        {!sidebarOpen && (
-                            <button onClick={() => setSidebarOpen(true)} style={{ background: 'transparent', border: '1px solid var(--border-glass)', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <PanelLeftOpen size={14} />
-                            </button>
-                        )}
-                        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                            <h2 style={{ fontSize: '14px', fontWeight: '700', letterSpacing: '0.02em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                    {/* Top bar */}
+                    <div style={{
+                        height: 64, padding: '0 28px', display: 'flex', alignItems: 'center',
+                        justifyContent: 'space-between', background: C.surface,
+                        borderBottom: `1px solid ${C.inkFaint}`, flexShrink: 0
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            {!sidebarOpen && (
+                                <button onClick={() => setSidebarOpen(true)}
+                                    style={{
+                                        background: C.surfaceAlt, border: `1px solid ${C.inkFaint}`,
+                                        borderRadius: 7, padding: '6px 8px', cursor: 'pointer',
+                                        color: C.inkMuted, display: 'flex', transition: 'all .15s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.borderColor = C.inkMuted}
+                                    onMouseLeave={e => e.currentTarget.style.borderColor = C.inkFaint}>
+                                    <PanelLeftOpen size={14} />
+                                </button>
+                            )}
+                            <h2 style={{
+                                fontFamily: C.fontDisplay, fontSize: 17, fontWeight: 700,
+                                color: C.ink, letterSpacing: '-0.02em'
+                            }}>
                                 Workspace
                             </h2>
                         </div>
-                    </div>
-                    {hasLedgerResults && !ledgerOpen && (
-                        <button onClick={() => setLedgerOpen(true)} style={{ background: 'transparent', border: '1px solid var(--border-glass)', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <PanelRightOpen size={14} />
-                            <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase' }}>Ledger</span>
-                        </button>
-                    )}
-                </div>
-
-                <div className="chat-container" style={{ flex: 1, padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
-                    <div style={{ width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-                        {/* Chat History */}
-                        {chatHistory.length === 0 && !loading && (
-                            <div style={{ textAlign: 'center', marginTop: '100px', opacity: 0.3 }}>
-                                <h3>How can I help you today?</h3>
-                            </div>
-                        )}
-
-                        {chatHistory.map((msg, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
+                        {hasLedger && !ledgerOpen && (
+                            <button onClick={() => setLedgerOpen(true)}
                                 style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                    alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                    gap: '8px',
-                                    width: '100%'
+                                    display: 'flex', alignItems: 'center', gap: 6, background: C.surfaceAlt,
+                                    border: `1px solid ${C.inkFaint}`, borderRadius: 7, padding: '6px 14px',
+                                    cursor: 'pointer', color: C.inkLight, fontSize: 11, fontWeight: 600, fontFamily: C.fontBody,
+                                    transition: 'all .15s'
                                 }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {msg.role === 'user' ? (
-                                        <>
-                                            <h4 style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>You</h4>
-                                            <User size={14} color="var(--text-muted)" />
-                                        </>
-                                    ) : msg.role === 'agent' ? (
-                                        <>
-                                            <Bot size={14} color="var(--accent-primary)" />
-                                            <h4 style={{ fontSize: '10px', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Agent</h4>
-                                        </>
-                                    ) : (
-                                        <h4 style={{ fontSize: '10px', color: 'var(--accent-red)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>System</h4>
-                                    )}
-                                </div>
+                                onMouseEnter={e => e.currentTarget.style.borderColor = C.inkMuted}
+                                onMouseLeave={e => e.currentTarget.style.borderColor = C.inkFaint}>
+                                <PanelRightOpen size={13} /> Ledger
+                            </button>
+                        )}
+                    </div>
 
-                                <div
-                                    className={msg.role === 'agent' ? "agent-chat-reply markdown-body" : ""}
+                    {/* Chat messages */}
+                    <div className="rck-scroll" style={{ flex: 1, overflowY: 'auto', padding: '36px 64px' }}>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 30 }}>
+
+                            {chatHistory.length === 0 && !loading && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                                    style={{ textAlign: 'center', marginTop: 90 }}>
+                                    <div style={{
+                                        width: 72, height: 72, borderRadius: '50%', margin: '0 auto 18px',
+                                        background: `linear-gradient(135deg, ${C.accentBlue}10 0%, ${C.accentTeal}10 100%)`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        border: `1.5px solid ${C.inkFaint}`, boxShadow: C.shadow
+                                    }}>
+                                        <Bot size={28} color={C.inkMuted} strokeWidth={1.5} />
+                                    </div>
+                                    <p style={{ fontFamily: C.fontDisplay, fontSize: 20, fontWeight: 700, color: C.ink, marginBottom: 8 }}>
+                                        How can I assist today?
+                                    </p>
+                                    <p style={{ fontSize: 13, color: C.inkMuted, lineHeight: 1.6 }}>
+                                        Upload a construction plan or select a skill to begin your analysis.
+                                    </p>
+                                </motion.div>
+                            )}
+
+                            {chatHistory.map((msg, i) => (
+                                <motion.div key={i}
+                                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
                                     style={{
-                                        maxWidth: '100%',
-                                        background: msg.role === 'user' ? 'rgba(0,0,0,0.03)' : msg.isError ? 'rgba(225, 29, 72, 0.05)' : 'transparent',
-                                        padding: msg.role === 'user' ? '12px 16px' : msg.role === 'agent' ? '0' : '12px 16px',
-                                        borderRadius: msg.role === 'user' ? '16px 16px 0 16px' : '8px',
-                                        color: msg.isError ? 'var(--accent-red)' : 'var(--text-primary)',
-                                        fontSize: '13px',
-                                        lineHeight: '1.6',
-                                        border: msg.role === 'user' ? '1px solid rgba(0,0,0,0.03)' : 'none'
-                                    }}
-                                >
-                                    {msg.role === 'agent' ? (() => {
-                                        if (!msg.content) return null;
+                                        display: 'flex', flexDirection: 'column', gap: 6,
+                                        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                        alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                        maxWidth: msg.role === 'user' ? '65%' : '100%',
+                                        width: msg.role === 'user' ? undefined : '100%'
+                                    }}>
 
-                                        // Split by tags: [IMAGE: ...], [TABLE: ...], [SUGGESTION: ...] OR ![alt](url)
-                                        const fragments = msg.content.split(/(\[IMAGE:\s*[\s\S]*?\]|\[TABLE:\s*[\s\S]*?\]|\[SUGGESTION:\s*[\s\S]*?\]|\[REFINE_FORM:\s*[\s\S]*?\]\s*\]|!\[.*?\]\(.*?\))/g);
+                                    {/* Role label */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        {msg.role === 'user' ? (
+                                            <>
+                                                <span style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono, fontWeight: 700, letterSpacing: '0.1em' }}>YOU</span>
+                                                <User size={11} color={C.inkMuted} />
+                                            </>
+                                        ) : msg.role === 'agent' ? (
+                                            <>
+                                                <Bot size={13} color={C.accentBlue} />
+                                                <span style={{ fontSize: 9, color: C.accentBlue, fontFamily: C.fontMono, fontWeight: 700, letterSpacing: '0.1em' }}>AGENT</span>
+                                            </>
+                                        ) : (
+                                            <span style={{ fontSize: 9, color: C.accentRed, fontFamily: C.fontMono, fontWeight: 700 }}>SYSTEM</span>
+                                        )}
+                                    </div>
 
-                                        const handleDownload = async (src, alt) => {
-                                            try {
-                                                const response = await fetch(src);
-                                                if (!response.ok) throw new Error("Fetch failed: " + response.status);
-                                                const contentType = response.headers.get("content-type");
-                                                if (contentType && contentType.includes("text/html")) throw new Error("Received HTML error");
+                                    {/* Message bubble */}
+                                    <div style={{
+                                        padding: msg.role === 'agent' ? '0' : '12px 16px',
+                                        borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : 0,
+                                        background: msg.role === 'user' ? C.accentBlue : msg.isError ? `${C.accentRed}06` : 'transparent',
+                                        border: msg.role === 'user' ? 'none' : msg.isError ? `1px solid ${C.accentRed}20` : 'none',
+                                        color: msg.role === 'user' ? '#fff' : msg.isError ? C.accentRed : C.ink,
+                                        boxShadow: msg.role === 'user' ? `0 2px 10px ${C.accentBlue}30` : 'none',
+                                    }}>
+                                        {msg.role === 'agent'
+                                            ? <div className="rck-prose">{renderAgent(msg)}</div>
+                                            : <div>
+                                                {msg.file && (
+                                                    <div style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                        fontSize: 9, background: 'rgba(255,255,255,0.2)',
+                                                        padding: '2px 8px', borderRadius: 3, marginBottom: 6
+                                                    }}>
+                                                        <FileIcon size={9} />{msg.file}
+                                                    </div>
+                                                )}
+                                                <p style={{ fontSize: 13, lineHeight: 1.65 }}>{msg.content}</p>
+                                            </div>
+                                        }
+                                    </div>
 
-                                                let ext = 'jpg';
-                                                if (contentType) {
-                                                    if (contentType.includes("webp")) ext = 'webp';
-                                                    else if (contentType.includes("png")) ext = 'png';
-                                                    else if (contentType.includes("jpeg") || contentType.includes("jpg")) ext = 'jpg';
-                                                }
+                                    <span style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono }}>
+                                        {msg.timestamp?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </motion.div>
+                            ))}
 
-                                                const blob = await response.blob();
-                                                const url = window.URL.createObjectURL(blob);
-                                                const a = document.createElement('a');
-                                                a.href = url;
-                                                a.download = (alt || 'image').replace(/[^a-zA-Z0-9]/g, '_') + '.' + ext;
-                                                document.body.appendChild(a);
-                                                a.click();
-                                                document.body.removeChild(a);
-                                                window.URL.revokeObjectURL(url);
-                                            } catch (err) {
-                                                console.error('Download failed:', err);
-                                                alert("Download failed. Generator server issue.");
-                                            }
-                                        };
-
-                                        return (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                {fragments.map((frag, idx) => {
-                                                    if (!frag) return null;
-
-                                                    // Case 1: [IMAGE: description]
-                                                    if (frag.startsWith('[IMAGE:')) {
-                                                        const match = frag.match(/\[IMAGE:\s*([\s\S]*?)\]/i);
-                                                        const cleanDesc = match ? match[1].trim() : "Image";
-                                                        // Substring to 50 chars FIRST
-                                                        const shortDesc = cleanDesc.length > 50 ? cleanDesc.substring(0, 50) : cleanDesc;
-                                                        // Append weight SECOND so it NEVER gets cut off!
-                                                        const weightedDesc = shortDesc + ", construction";
-                                                        const encoded = encodeURIComponent(weightedDesc);
-
-                                                        let seed = 0;
-                                                        for (let i = 0; i < cleanDesc.length; i++) seed = cleanDesc.charCodeAt(i) + ((seed << 5) - seed);
-
-                                                        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encoded}?width=800&height=400&nologo=true&seed=${Math.abs(seed)}`;
-                                                        const proxyUrl = `http://localhost:8000/v1/proxy-image?url=${encodeURIComponent(pollinationsUrl)}&msgIdx=${idx}`;
-
-                                                        return (
-                                                            <div key={idx} style={{ margin: '12px 0', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)' }}>
-                                                                <img src={proxyUrl} alt={shortDesc} style={{ width: '100%', display: 'block', maxHeight: '400px', objectFit: 'cover' }} />
-                                                                <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                                                                        <ImageIcon size={14} /> <span>{shortDesc}</span>
-                                                                    </div>
-                                                                    <button onClick={() => handleDownload(proxyUrl, shortDesc)} style={{ padding: '4px 12px', background: 'var(--accent-primary)', color: '#000', border: 'none', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Download</button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-
-                                                    // Case 2: ![alt](url)
-                                                    if (frag.startsWith('![')) {
-                                                        const match = frag.match(/!\[(.*?)\]\((.*?)\)/s);
-                                                        const alt = match ? match[1] : "Image";
-                                                        let src = match ? match[2] : "";
-                                                        if (src && !src.startsWith('http')) src = `http://localhost:8000/v1/proxy-image?url=${encodeURIComponent(src)}`;
-
-                                                        return (
-                                                            <div key={idx} style={{ margin: '12px 0', border: '1px solid var(--border-glass)', borderRadius: '8px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)' }}>
-                                                                <img src={src} alt={alt} style={{ width: '100%', display: 'block', maxHeight: '400px', objectFit: 'cover' }} />
-                                                                <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                                                                        <ImageIcon size={14} /> <span>{alt}</span>
-                                                                    </div>
-                                                                    <button onClick={() => handleDownload(src, alt)} style={{ padding: '4px 12px', background: 'var(--accent-primary)', color: '#000', border: 'none', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>Download</button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-
-                                                    // Case 4: [TABLE: ...]
-                                                    if (frag.startsWith('[TABLE:')) {
-                                                        const match = frag.match(/\[TABLE:\s*([\s\S]*?)\]/i);
-                                                        if (match) {
-                                                            try {
-                                                                let cleanedJson = match[1].trim();
-                                                                // Strip unescaped line breaks that break JSON.parse
-                                                                cleanedJson = cleanedJson.replace(/\r?\n/g, ' ');
-                                                                cleanedJson = cleanedJson.replace(/(\{|\,)\s*'([^']+)'\s*:/g, '$1"$2":');
-                                                                cleanedJson = cleanedJson.replace(/:\s*'([^']+)'/g, ':"$1"');
-                                                                if (!cleanedJson.endsWith(']')) {
-                                                                    if (cleanedJson.endsWith('}')) cleanedJson += ']';
-                                                                    else cleanedJson += '}]';
-                                                                }
-                                                                const data = JSON.parse(cleanedJson);
-                                                                if (Array.isArray(data) && data.length > 0) {
-                                                                    const headers = Object.keys(data[0]);
-                                                                    return (
-                                                                        <div key={idx} style={{ margin: '16px 0', overflowX: 'auto', border: '1px solid var(--border-glass)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
-                                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-glass)' }}>
-                                                                                <button
-                                                                                    onClick={() => {
-                                                                                        let excelFile = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet 1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border='1'>";
-                                                                                        excelFile += "<tr>" + headers.map(h => `<th style='background-color: #1E3A5F; color: #FFFFFF; font-weight: bold;'>${h.replace(/_/g, ' ')}</th>`).join("") + "</tr>";
-                                                                                        data.forEach(row => {
-                                                                                            excelFile += "<tr>" + headers.map(h => `<td>${(row[h] || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join("") + "</tr>";
-                                                                                        });
-                                                                                        excelFile += "</table></body></html>";
-
-                                                                                        const blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
-                                                                                        const url = URL.createObjectURL(blob);
-                                                                                        const link = document.createElement("a");
-                                                                                        link.href = url;
-                                                                                        link.setAttribute("download", "RCK_Export.xls");
-                                                                                        link.click();
-                                                                                    }}
-                                                                                    style={{ padding: '4px 10px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent-primary)', border: '1px solid var(--accent-primary)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                                                >
-                                                                                    <Download size={11} /> Export Excel
-                                                                                </button>
-                                                                            </div>
-                                                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                                                                                <thead>
-                                                                                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-glass)' }}>
-                                                                                        {headers.map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 'bold', color: 'var(--accent-primary)', textTransform: 'capitalize' }}>{h.replace(/_/g, ' ')}</th>)}
-                                                                                    </tr>
-                                                                                </thead>
-                                                                                <tbody>
-                                                                                    {data.map((row, rIdx) => (
-                                                                                        <tr key={rIdx} style={{ borderBottom: rIdx < data.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-                                                                                            {headers.map(h => <td key={h} style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{row[h]}</td>)}
-                                                                                        </tr>
-                                                                                    ))}
-                                                                                </tbody>
-                                                                            </table>
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                            } catch (err) {
-                                                                return <div key={idx} style={{ color: 'var(--accent-red)', fontSize: '11px', margin: '8px 0' }}>[Table Render Error: {err.message}]</div>;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // Case 5: [SUGGESTION: ...]
-                                                    if (frag.startsWith('[SUGGESTION:')) {
-                                                        const match = frag.match(/\[SUGGESTION:\s*([\s\S]*?)\]/i);
-                                                        const sugContent = match ? match[1].trim() : "";
-                                                        if (sugContent) {
-                                                            return (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => handleRunAnalysis(sugContent)}
-                                                                    style={{
-                                                                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                                                                        padding: '8px 16px', background: '#FFFFFF',
-                                                                        color: 'var(--accent-primary)', border: '1px solid rgba(56, 189, 248, 0.2)',
-                                                                        borderRadius: '20px', fontSize: '11px', fontWeight: '600',
-                                                                        cursor: 'pointer', transition: 'all 0.2s', margin: '4px 8px 4px 0'
-                                                                    }}
-                                                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(2, 132, 199, 0.05)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
-                                                                    onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.2)'; }}
-                                                                >
-                                                                    <MessageSquare size={13} />
-                                                                    {sugContent}
-                                                                </button>
-                                                            );
-                                                        }
-                                                    }
-
-                                                    // Case 6: [REFINE_FORM: ...]
-                                                    if (frag.startsWith('[REFINE_FORM:')) {
-                                                        const match = frag.match(/\[REFINE_FORM:\s*([\s\S]*?)\]\s*\]/i);
-                                                        const formContent = match ? match[1].trim() : "";
-                                                        if (formContent) {
-                                                             try {
-                                                                let fields = [];
-                                                                try {
-                                                                    const sanitized = formContent.replace(/[\u201C\u201D\u2018\u2019]/g, '"');
-                                                                    fields = JSON.parse(sanitized);
-                                                                } catch (err) {
-                                                                    fields = formContent.replace(/[\[\]]/g, '')
-                                                                        .split(',')
-                                                                        .map(f => f.trim().replace(/^["']|["']$/g, ''))
-                                                                        .filter(f => f);
-                                                                }
-                                                                return (
-                                                                    <div key={idx} style={{ margin: '8px 0' }}>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setPendingSugText("Refine request with parameters:");
-                                                                                setRequiredFields(fields);
-                                                                                setParamsData({});
-                                                                                setIsParamModalOpen(true);
-                                                                            }}
-                                                                            style={{
-                                                                                display: 'inline-flex', alignItems: 'center', gap: '8px',
-                                                                                padding: '8px 16px', background: 'rgba(56, 189, 248, 0.08)',
-                                                                                color: 'var(--accent-primary)', border: '1px solid var(--accent-primary)',
-                                                                                borderRadius: '20px', fontSize: '11px', fontWeight: 'bold',
-                                                                                cursor: 'pointer', transition: 'all 0.2s'
-                                                                            }}
-                                                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(2, 132, 199, 0.15)'; }}
-                                                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.08)'; }}
-                                                                        >
-                                                                            <Edit3 size={13} /> Fill Details Form
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            } catch (err) {
-                                                                return <div style={{ color: 'var(--accent-red)', fontSize: '11px', margin: '4px 0', background: 'rgba(225,29,72,0.05)', padding: '6px', borderRadius: '4px' }}>[Form Parse Error: {err.message} from: {formContent}]</div>;
-                                                            }
-                                                        }
-                                                    }
-
-                                                    // Case 3: Standard Text
+                            {/* Loading stepper */}
+                            <AnimatePresence>
+                                {loading && (
+                                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                        style={{ alignSelf: 'flex-start' }}>
+                                        <div style={{
+                                            padding: '16px 20px', border: `1px solid ${C.inkFaint}`, borderRadius: 12,
+                                            background: C.surface, width: 'fit-content', minWidth: 320, boxShadow: C.shadow
+                                        }}>
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                                                paddingBottom: 10, borderBottom: `1px solid ${C.inkFaint}`
+                                            }}>
+                                                <Bot size={13} color={C.accentBlue} />
+                                                <span style={{ fontSize: 9, color: C.accentBlue, fontWeight: 700, fontFamily: C.fontMono, letterSpacing: '0.1em' }}>
+                                                    AGENT ANALYZING…
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                                                {loadingSteps.map((step, idx) => {
+                                                    const done = idx < loadStep, cur = idx === loadStep;
                                                     return (
-                                                        <ReactMarkdown
-                                                            key={idx}
-                                                            components={{
-                                                                a: ({ node, ...props }) => {
-                                                                    const isDoc = (typeof props.children === 'string' && props.children.toLowerCase().includes('download')) || (props.children?.[0]?.toLowerCase?.()?.includes?.('download')) || props.href?.includes('.txt') || props.href?.includes('.pdf') || props.href === '#';
-                                                                    if (isDoc) {
-                                                                        return (
-                                                                            <div style={{ margin: '12px 0', padding: '12px', border: '1px solid var(--border-glass)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                                                    <div style={{ padding: '8px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '8px', color: 'var(--accent-primary)' }}><FileText size={18} /></div>
-                                                                                    <div>
-                                                                                        <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{props.children}</h4>
-                                                                                        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>Generated Document • PDF</p>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.preventDefault();
-                                                                                        try {
-                                                                                            if (window.jspdf && window.jspdf.jsPDF) {
-                                                                                                const doc = new window.jspdf.jsPDF();
-                                                                                                doc.setFontSize(14); doc.setFont("helvetica", "bold");
-                                                                                                doc.text(String(props.children[0] || props.children || 'Generated Document'), 15, 20);
-                                                                                                doc.setFontSize(10); doc.setFont("helvetica", "normal");
-                                                                                                const cleanText = msg.content.replace(/[*#`_~>\[\]]/g, '').trim();
-                                                                                                const lines = doc.splitTextToSize(cleanText, 180);
-                                                                                                let cursorY = 32;
-                                                                                                lines.forEach(line => { if (cursorY > 280) { doc.addPage(); cursorY = 20; } doc.text(line, 15, cursorY); cursorY += 6; });
-                                                                                                let filename = String(props.children[0] || props.children || 'RCK_Analysis').replace(/\s+/g, '_');
-                                                                                                if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
-                                                                                                doc.save(filename);
-                                                                                            } else throw new Error("jsPDF not loaded");
-                                                                                        } catch (err) {
-                                                                                            const blob = new Blob([msg.content], { type: 'text/plain' });
-                                                                                            const url = URL.createObjectURL(blob);
-                                                                                            const a = document.createElement('a'); a.href = url; a.download = 'RCK_Fallback_Document.txt'; a.click(); URL.revokeObjectURL(url);
-                                                                                        }
-                                                                                    }}
-                                                                                    style={{ padding: '6px 16px', background: 'var(--accent-primary)', color: '#000', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                                                                >
-                                                                                    <Download size={14} /> Download PDF
-                                                                                </button>
-                                                                            </div>
-                                                                        );
-                                                                    }
-                                                                    return <a {...props} style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }} />;
-                                                                }
-                                                            }}
-                                                        >
-                                                            {frag}
-                                                        </ReactMarkdown>
+                                                        <div key={idx} style={{
+                                                            display: 'flex', alignItems: 'center', gap: 10,
+                                                            fontSize: 11, color: done ? C.inkMuted : cur ? C.ink : C.inkFaint,
+                                                            opacity: done || cur ? 1 : 0.4
+                                                        }}>
+                                                            {done
+                                                                ? <Check size={11} color={C.accentGreen} />
+                                                                : cur
+                                                                    ? <Loader size={11} color={C.accentBlue} style={{ animation: 'rck-spin 1s linear infinite' }} />
+                                                                    : <Circle size={11} color={C.inkFaint} />}
+                                                            {step}
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
-                                        );
-                                    })() : (
-                                        <div>
-                                            {msg.file && (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '9px', color: 'var(--accent-primary)', marginBottom: '4px', background: 'rgba(56, 189, 248, 0.1)', padding: '4px 8px', borderRadius: '4px', width: 'fit-content' }}>
-                                                    <FileIcon size={10} /> {msg.file}
-                                                </div>
-                                            )}
-                                            {msg.content}
                                         </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))}
-
-                        {/* Loading State */}
-                        <AnimatePresence>
-                            {loading && (
-                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="agent-chat-reply loading-pulse" style={{ alignSelf: 'flex-start', width: '100%' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', background: 'rgba(56, 189, 248, 0.02)', width: 'fit-content', minWidth: '280px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
-                                            <Bot size={14} color="var(--accent-primary)" />
-                                            <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 'bold', letterSpacing: '0.05em' }}>AGENT ANALYZING...</span>
-                                        </div>
-                                        {loadingSteps.map((step, index) => {
-                                            const isCompleted = index < loadStep;
-                                            const isCurrent = index === loadStep;
-                                            return (
-                                                <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: isCompleted || isCurrent ? 'var(--text-primary)' : 'var(--text-secondary)', opacity: isCompleted || isCurrent ? 1 : 0.4 }}>
-                                                    {isCompleted ? (
-                                                        <Check size={12} color="#10B981" />
-                                                    ) : isCurrent ? (
-                                                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ display: 'flex' }}>
-                                                            <Loader size={12} color="var(--accent-primary)" />
-                                                        </motion.div>
-                                                    ) : (
-                                                        <Circle size={12} color="rgba(255,255,255,0.2)" />
-                                                    )}
-                                                    <span style={{ color: isCompleted ? 'var(--text-muted)' : 'inherit' }}>{step}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <div ref={chatEndRef} />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <div ref={chatEndRef} />
+                        </div>
                     </div>
-                </div>
 
-                {/* Fixed Input Area */}
-                <div style={{ padding: '0 32px 24px 32px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-                    <div style={{ width: '100%', maxWidth: '800px' }}>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', fontWeight: '600' }}>AGENT_INSTRUCTIONS</p>
-                        <div style={{ position: 'relative' }}>
+                    {/* Input bar */}
+                    <div style={{
+                        padding: '16px 64px 20px', background: C.surface,
+                        borderTop: `1px solid ${C.inkFaint}`, flexShrink: 0
+                    }}>
+                        <div style={{ maxWidth: 740, margin: '0 auto' }}>
+                            <Label>Agent Instructions</Label>
                             {primaryFile && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', borderRadius: '6px', width: 'fit-content', marginBottom: '12px' }}>
-                                    <FileIcon size={12} color="var(--accent-primary)" />
-                                    <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <div style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                                    background: `${C.accentBlue}10`, border: `1px solid ${C.accentBlue}25`,
+                                    borderRadius: 5, marginBottom: 10
+                                }}>
+                                    <FileIcon size={10} color={C.accentBlue} />
+                                    <span style={{
+                                        fontSize: 10, fontWeight: 600, color: C.accentBlue,
+                                        maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                                    }}>
                                         {primaryFile.name}
                                     </span>
-                                    <button onClick={() => setPrimaryFile(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, marginLeft: '4px' }}>✕</button>
+                                    <button onClick={() => setPrimaryFile(null)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMuted, padding: 0 }}>
+                                        <X size={10} />
+                                    </button>
                                 </div>
                             )}
                             <div style={{ position: 'relative' }}>
-                                <textarea
-                                    className="prompt-box"
-                                    placeholder="Instruct the agent... e.g. 'Identify critical path risks.'"
+                                <textarea className="prompt-box"
+                                    placeholder="Instruct the agent… e.g. 'Identify critical path risks.'"
                                     value={promptText}
-                                    onChange={(e) => setPromptText(e.target.value)}
-                                    style={{ minHeight: '60px', paddingRight: loading ? '200px' : '110px' }}
-                                    onKeyDown={(e) => {
+                                    onChange={e => setPromptText(e.target.value)}
+                                    onKeyDown={e => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
-                                            if (!primaryFile && !promptText && !selectedSkill) {
-                                                alert("Please upload a Target Plan, enter a Prompt, or select a Skill to execute.");
-                                                return;
-                                            }
+                                            if (!primaryFile && !promptText && !selectedSkill) { alert('Please upload a plan, enter a prompt, or select a skill.'); return; }
                                             handleRunAnalysis();
                                         }
                                     }}
                                 />
-                                <div style={{ position: 'absolute', right: '12px', bottom: '12px', display: 'flex', gap: '8px' }}>
-                                    {loading ? (
-                                        <button
-                                            className="portal-btn-tiny"
-                                            onClick={stopValidation}
-                                            style={{ background: 'rgba(251, 113, 133, 0.1)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)' }}
-                                        >
-                                            Stop <Zap size={12} style={{ marginLeft: '4px' }} />
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="portal-btn-tiny"
-                                            onClick={() => {
-                                                if (!primaryFile && !promptText && !selectedSkill) {
-                                                    alert("Please upload a Target Plan, enter a Prompt, or select a Skill to execute.");
-                                                    return;
-                                                }
-                                                handleRunAnalysis();
-                                            }}
-                                        >
-                                            Execute <Zap size={12} style={{ marginLeft: '4px' }} />
-                                        </button>
-                                    )}
+                                <div style={{ position: 'absolute', right: 12, bottom: 12 }}>
+                                    {loading
+                                        ? <button className="stop-btn" onClick={stopValidation}>Stop <Zap size={11} /></button>
+                                        : <button className="exec-btn" onClick={() => {
+                                            if (!primaryFile && !promptText && !selectedSkill) { alert('Please upload a plan, enter a prompt, or select a skill.'); return; }
+                                            handleRunAnalysis();
+                                        }}>Execute <Zap size={11} /></button>
+                                    }
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    {/* Footer */}
+                    <div style={{
+                        height: 38, background: C.surface, borderTop: `1px solid ${C.inkFaint}`,
+                        display: 'flex', alignItems: 'center', padding: '0 32px', gap: 10, flexShrink: 0
+                    }}>
+                        <StatusDot live={loading} />
+                        <span style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono, letterSpacing: '0.08em' }}>
+                            SESSION_ACTIVE // {new Date().toLocaleTimeString()}
+                        </span>
+                    </div>
                 </div>
 
-                <div style={{ height: '56px', borderTop: '1px solid var(--border-glass)', display: 'flex', alignItems: 'center', padding: '0 32px', fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    SESSION_ACTIVE // {new Date().toLocaleTimeString()}
-                </div>
-            </div>
+                {/* ══════════ LEDGER ══════════ */}
+                <AnimatePresence>
+                    {hasLedger && ledgerOpen && (
+                        <motion.aside
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: sidebarOpen ? 370 : 460, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: 'easeInOut' }}
+                            style={{
+                                height: '100%', background: C.surface,
+                                borderLeft: `1px solid ${C.inkFaint}`, flexShrink: 0, overflow: 'hidden',
+                                boxShadow: '-2px 0 16px rgba(28,35,64,0.06)'
+                            }}>
+                            <div style={{ width: sidebarOpen ? 370 : 460, height: '100%', display: 'flex', flexDirection: 'column' }}>
 
-            {/* Panel C: Results & Validation (Right) */}
-            <AnimatePresence>
-                {hasLedgerResults && ledgerOpen && (
-                    <motion.div
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: sidebarOpen ? 450 : 600, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                        className="glass-panel"
-                        style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-                    >
-                        <div style={{ width: sidebarOpen ? '450px' : '600px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                            <div style={{ height: '64px', borderBottom: '1px solid var(--border-glass)', display: 'flex', alignItems: 'center', padding: '0 24px', justifyContent: 'space-between' }}>
-                                <h3 style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Analysis_Ledger</h3>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    {esreScoreValue !== null && (
-                                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '700' }}>
-                                            RELIABILITY: {esreScoreValue}%
-                                        </div>
-                                    )}
-                                    <button onClick={() => setLedgerOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                        <PanelRightClose size={18} />
-                                    </button>
+                                {/* Ledger header */}
+                                <div style={{
+                                    height: 64, padding: '0 20px', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'space-between', borderBottom: `1px solid ${C.inkFaint}`
+                                }}>
+                                    <div>
+                                        <p style={{ fontFamily: C.fontDisplay, fontSize: 15, fontWeight: 700, color: C.ink, lineHeight: 1 }}>
+                                            Analysis Ledger
+                                        </p>
+                                        <p style={{
+                                            fontSize: 9, fontFamily: C.fontMono, color: C.inkMuted,
+                                            letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 3
+                                        }}>
+                                            Compliance Results
+                                        </p>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        {esreScore !== null && <Chip color={C.accentBlue}>{esreScore}% reliable</Chip>}
+                                        <button onClick={() => setLedgerOpen(false)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMuted, display: 'flex', padding: 4 }}>
+                                            <PanelRightClose size={15} />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-                                <AnimatePresence mode="popLayout" initial={false}>
+                                <div className="rck-scroll" style={{ padding: 20, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
                                     {error && (
-                                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: '16px', background: 'rgba(251, 113, 133, 0.1)', border: '1px solid var(--accent-red)', borderRadius: '12px', color: 'var(--accent-red)', fontSize: '12px', marginBottom: '24px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <AlertCircle size={16} />
-                                            <div><strong>Error:</strong> {error}</div>
-                                        </motion.div>
+                                        <div style={{
+                                            padding: '12px 14px', background: `${C.accentRed}08`,
+                                            border: `1px solid ${C.accentRed}25`, borderRadius: 10,
+                                            color: C.accentRed, fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start'
+                                        }}>
+                                            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                                            <span><strong>Error:</strong> {error}</span>
+                                        </div>
                                     )}
 
                                     {!data && !loading ? (
-                                        <div style={{ textAlign: 'center', marginTop: '100px', opacity: 0.2 }}>
-                                            <FileText size={48} strokeWidth={1} style={{ marginBottom: '16px' }} />
-                                            <h4 style={{ fontSize: '12px', fontWeight: '700' }}>AWAITING_STREAM</h4>
-                                            <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px' }}>Upload a construction plan to begin.</p>
+                                        <div style={{ textAlign: 'center', marginTop: 80 }}>
+                                            <FileText size={40} strokeWidth={1} color={C.inkFaint} style={{ margin: '0 auto 14px', display: 'block' }} />
+                                            <p style={{ fontFamily: C.fontDisplay, fontSize: 14, fontWeight: 600, color: C.inkMuted }}>
+                                                Awaiting Stream
+                                            </p>
+                                            <p style={{ fontSize: 11, color: C.inkMuted, marginTop: 5 }}>
+                                                Upload a construction plan to begin.
+                                            </p>
                                         </div>
                                     ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-                                            <div className="esre-card" style={{ padding: '20px', borderRadius: '16px' }}>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                        <>
+                                            {/* Score card */}
+                                            <div style={{
+                                                padding: '20px 22px', borderRadius: 12,
+                                                background: `linear-gradient(135deg, ${C.accentBlue}07 0%, ${C.accentTeal}05 100%)`,
+                                                border: `1px solid ${C.accentBlue}15`, boxShadow: C.shadow
+                                            }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                                                     <div>
-                                                        <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: '4px' }}>Violations</div>
-                                                        <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-red)', fontFamily: 'var(--font-mono)' }}>
-                                                            {violationsCount.toString().padStart(2, '0')}
-                                                        </div>
+                                                        <p style={{
+                                                            fontSize: 9, fontWeight: 700, fontFamily: C.fontMono,
+                                                            textTransform: 'uppercase', letterSpacing: '0.12em',
+                                                            color: C.inkMuted, marginBottom: 6
+                                                        }}>Violations</p>
+                                                        <p style={{
+                                                            fontFamily: C.fontDisplay, fontSize: 32, fontWeight: 800, lineHeight: 1,
+                                                            color: violations > 0 ? C.accentRed : C.accentGreen
+                                                        }}>
+                                                            {violations.toString().padStart(2, '0')}
+                                                        </p>
                                                     </div>
                                                     <div>
-                                                        <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: '4px' }}>Intelligence Score</div>
-                                                        <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)' }}>
-                                                            {esreScoreValue ? `${esreScoreValue}%` : '--'}
-                                                        </div>
+                                                        <p style={{
+                                                            fontSize: 9, fontWeight: 700, fontFamily: C.fontMono,
+                                                            textTransform: 'uppercase', letterSpacing: '0.12em',
+                                                            color: C.inkMuted, marginBottom: 6
+                                                        }}>Intelligence Score</p>
+                                                        <p style={{
+                                                            fontFamily: C.fontDisplay, fontSize: 32, fontWeight: 800, lineHeight: 1,
+                                                            color: C.accentBlue
+                                                        }}>
+                                                            {esreScore ? `${esreScore}%` : '—'}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                {finalResults.map((item, i) => (
-                                                    <ComplianceCard key={item.id || i} item={item} index={i} />
-                                                ))}
+                                            {/* Compliance items */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                {results.map((item, i) => <ComplianceCard key={item.id || i} item={item} index={i} />)}
                                             </div>
-                                        </div>
+                                        </>
                                     )}
-                                </AnimatePresence>
+                                </div>
                             </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
 
-            {/* Parameter Input Modal */}
-            <AnimatePresence>
-                {isParamModalOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="glass-panel"
-                            style={{ padding: '24px', width: '400px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-deep)', border: '1px solid var(--border-glass)' }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
-                                <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>Refine Prompt Details</h4>
-                                <button onClick={() => setIsParamModalOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
-                            </div>
+                {/* ══════════ PARAM MODAL ══════════ */}
+                <AnimatePresence>
+                    {isParamModalOpen && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            style={{
+                                position: 'fixed', inset: 0, background: 'rgba(28,35,64,0.30)',
+                                backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', zIndex: 1000
+                            }}>
+                            <motion.div initial={{ scale: 0.95, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+                                style={{
+                                    width: 420, background: C.surface, borderRadius: 16, padding: 28,
+                                    boxShadow: C.shadowLg, border: `1px solid ${C.inkFaint}`,
+                                    display: 'flex', flexDirection: 'column', gap: 20
+                                }}>
 
-                            <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Fill in any specific parameters (Optional) to enrich your request before submitting.</p>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                {requiredFields.map((field, idx) => (
-                                    <div key={idx}>
-                                        <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{field}</label>
-                                        <input
-                                            type="text"
-                                            value={paramsData[field] || ''}
-                                            onChange={(e) => setParamsData({ ...paramsData, [field]: e.target.value })}
-                                            placeholder={`Provide ${field}`}
-                                            style={{ width: '100%', padding: '10px 12px', background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.15)', borderRadius: '8px', color: '#111827', marginTop: '4px', fontSize: '12px', outline: 'none' }}
-                                        />
+                                <div style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                                    paddingBottom: 16, borderBottom: `1px solid ${C.inkFaint}`
+                                }}>
+                                    <div>
+                                        <p style={{ fontFamily: C.fontDisplay, fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 4 }}>
+                                            Refine Prompt
+                                        </p>
+                                        <p style={{ fontSize: 12, color: C.inkMuted, lineHeight: 1.5 }}>
+                                            Fill in parameters to enrich your request.
+                                        </p>
                                     </div>
-                                ))}
-                            </div>
+                                    <button onClick={() => setIsParamModalOpen(false)}
+                                        style={{
+                                            background: C.surfaceAlt, border: `1px solid ${C.inkFaint}`,
+                                            borderRadius: 7, padding: '6px 7px', cursor: 'pointer', color: C.inkMuted, display: 'flex',
+                                            transition: 'all .15s'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.borderColor = C.inkMuted}
+                                        onMouseLeave={e => e.currentTarget.style.borderColor = C.inkFaint}>
+                                        <X size={13} />
+                                    </button>
+                                </div>
 
-                            <button
-                                onClick={() => {
-                                    let addedText = " [Details: ";
-                                    Object.entries(paramsData).forEach(([key, val]) => {
-                                        if (val) addedText += `${key}=${val}, `;
-                                    });
-                                    addedText = addedText.replace(/,\s*$/, '') + "]";
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                    {requiredFields.map((field, idx) => (
+                                        <div key={idx}>
+                                            <label style={{
+                                                fontSize: 10, fontWeight: 700, color: C.inkLight,
+                                                display: 'block', marginBottom: 6, letterSpacing: '0.02em'
+                                            }}>
+                                                {field}
+                                            </label>
+                                            <input type="text" className="modal-input"
+                                                value={paramsData[field] || ''}
+                                                onChange={e => setParamsData({ ...paramsData, [field]: e.target.value })}
+                                                placeholder={`Provide ${field}…`} />
+                                        </div>
+                                    ))}
+                                </div>
 
-                                    if (addedText !== " [Details: ]") {
-                                        handleRunAnalysis(pendingSugText + addedText);
-                                    } else {
-                                        handleRunAnalysis(pendingSugText);
-                                    }
-
-                                    setIsParamModalOpen(false);
-                                    setParamsData({});
-                                }}
-                                style={{ padding: '10px', background: 'var(--accent-primary)', color: '#000', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', marginTop: '8px' }}
-                            >
-                                Submit Request
-                            </button>
+                                <button className="exec-btn"
+                                    style={{ justifyContent: 'center', padding: '12px 0', width: '100%', borderRadius: 10, fontSize: 13 }}
+                                    onClick={() => {
+                                        const extras = Object.entries(paramsData).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join(', ');
+                                        handleRunAnalysis(extras ? `${pendingSugText} [Details: ${extras}]` : pendingSugText);
+                                        setIsParamModalOpen(false); setParamsData({});
+                                    }}>
+                                    Submit Request
+                                </button>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+                    )}
+                </AnimatePresence>
+
+            </div>
+        </>
     );
 };
 
