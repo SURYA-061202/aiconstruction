@@ -21,7 +21,8 @@ import {
     Image as ImageIcon,
     Check,
     Loader,
-    Circle
+    Circle,
+    Edit3
 } from 'lucide-react';
 import { useRckEngine } from '../hooks/useRckEngine';
 import ComplianceCard from './ComplianceCard';
@@ -37,6 +38,10 @@ const Dashboard = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [ledgerOpen, setLedgerOpen] = useState(true);
     const [chatHistory, setChatHistory] = useState([]);
+    const [isParamModalOpen, setIsParamModalOpen] = useState(false);
+    const [pendingSugText, setPendingSugText] = useState("");
+    const [requiredFields, setRequiredFields] = useState([]);
+    const [paramsData, setParamsData] = useState({});
     const chatEndRef = useRef(null);
 
     const [loadStep, setLoadStep] = useState(0);
@@ -115,7 +120,7 @@ const Dashboard = () => {
     const hasLedgerResults = finalResults.length > 0 || (loading && primaryFile) || (!data && primaryFile);
 
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-deep)', color: 'white' }}>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)' }}>
 
             {/* Panel A: Configuration (Left) - Glassmorphism UI */}
             <AnimatePresence>
@@ -126,22 +131,23 @@ const Dashboard = () => {
                         exit={{ width: 0, opacity: 0 }}
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="glass-panel"
-                        style={{ height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto' }}
+                        style={{ height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto', background: 'var(--bg-deep)', color: 'var(--text-primary)' }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', height: '64px', borderBottom: '1px solid var(--border-glass)', margin: '-24px -24px 24px -24px', padding: '0 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', height: '64px', margin: '-24px -24px 24px -24px', padding: '0 24px', position: 'relative' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '100%' }}>
                                 <div style={{ width: '36px', height: '36px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: '50%', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Activity size={20} />
                                 </div>
-                                <h1 style={{ fontSize: '15px', fontWeight: '800', letterSpacing: '0.05em', display: 'flex', alignItems: 'center' }}>RCK_PORTAL</h1>
+                                <h1 style={{ fontSize: '15px', fontWeight: '800', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', color: 'var(--text-primary)' }}>RCK_PORTAL</h1>
                             </div>
                             <button onClick={() => setSidebarOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', height: '100%' }}>
                                 <PanelLeftClose size={18} />
                             </button>
+                            <div style={{ position: 'absolute', bottom: 0, left: '24px', right: '24px', height: '1px', background: 'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 100%)' }} />
                         </div>
 
                         <div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '12px', letterSpacing: '0.05em' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                                 Agent Skillset
                             </label>
 
@@ -153,24 +159,24 @@ const Dashboard = () => {
                                             onChange={(e) => setSelectedSkill(e.target.value)}
                                             style={{
                                                 width: '100%',
-                                                padding: '8px 32px 8px 12px', /* adjusted padding for height and arrow space */
-                                                borderRadius: '6px',
-                                                background: 'rgba(255, 255, 255, 0.03)',
+                                                padding: '9px 32px 9px 12px',
+                                                borderRadius: '8px',
+                                                background: '#FFFFFF',
                                                 color: 'var(--text-primary)',
                                                 border: '1px solid var(--border-glass)',
                                                 outline: 'none',
                                                 fontFamily: 'var(--font-family)',
                                                 fontSize: '11px',
                                                 cursor: 'pointer',
-                                                appearance: 'none', /* hide default arrow */
+                                                appearance: 'none',
                                                 WebkitAppearance: 'none'
                                             }}
                                         >
-                                            <option value="" style={{ background: '#0B0E14', color: 'var(--text-muted)' }}>Select a Planning Agent Skill...</option>
+                                            <option value="" style={{ background: '#FFFFFF', color: 'var(--text-muted)' }}>Select a Planning Agent Skill...</option>
                                             {skills.map(category => (
-                                                <optgroup key={category.id} label={category.name.toUpperCase()} style={{ background: '#0B0E14', color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                                                <optgroup key={category.id} label={category.name.toUpperCase()} style={{ background: '#FFFFFF', color: 'var(--text-primary)', fontWeight: 'bold' }}>
                                                     {category.skills.map(skill => (
-                                                        <option key={skill.id} value={skill.id} style={{ background: '#0B0E14', color: 'var(--text-secondary)' }}>
+                                                        <option key={skill.id} value={skill.id} style={{ background: '#FFFFFF', color: 'var(--text-secondary)' }}>
                                                             {skill.name}
                                                         </option>
                                                     ))}
@@ -186,16 +192,16 @@ const Dashboard = () => {
                         {/* Upload Section */}
                         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                     Target Plan (PFD/DOCX)
                                 </label>
                                 <div
                                     className="glass-card"
-                                    style={{ padding: '12px', textAlign: 'center', cursor: 'pointer', borderRadius: '10px' }}
+                                    style={{ padding: '12px', textAlign: 'center', cursor: 'pointer', borderRadius: '10px', background: '#F8FAFC', border: '1px solid var(--border-glass)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}
                                     onClick={() => document.getElementById('primary-upload').click()}
                                 >
                                     <input type="file" id="primary-upload" style={{ display: 'none' }} onChange={(e) => setPrimaryFile(e.target.files[0])} />
-                                    <FileUp size={16} color={primaryFile ? 'var(--accent-primary)' : 'var(--text-muted)'} style={{ marginBottom: '4px' }} />
+                                    <FileUp size={16} color={primaryFile ? '#38BDF8' : '#64748B'} style={{ marginBottom: '4px' }} />
                                     <p style={{ fontSize: '10px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {primaryFile ? primaryFile.name : 'Target Plan'}
                                     </p>
@@ -203,16 +209,16 @@ const Dashboard = () => {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                     Optional Checklist
                                 </label>
                                 <div
                                     className="glass-card"
-                                    style={{ padding: '12px', textAlign: 'center', cursor: 'pointer', borderRadius: '10px' }}
+                                    style={{ padding: '12px', textAlign: 'center', cursor: 'pointer', borderRadius: '10px', background: '#F8FAFC', border: '1px solid var(--border-glass)', color: 'var(--text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}
                                     onClick={() => document.getElementById('checklist-upload').click()}
                                 >
                                     <input type="file" id="checklist-upload" style={{ display: 'none' }} onChange={(e) => setChecklistFile(e.target.files[0])} />
-                                    <ClipboardCheck size={16} color={checklistFile ? 'var(--accent-teal)' : 'var(--text-muted)'} style={{ marginBottom: '4px' }} />
+                                    <ClipboardCheck size={16} color={checklistFile ? '#2DD4BF' : '#64748B'} style={{ marginBottom: '4px' }} />
                                     <p style={{ fontSize: '10px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {checklistFile ? checklistFile.name : 'Checklist File'}
                                     </p>
@@ -221,12 +227,12 @@ const Dashboard = () => {
                         </div>
 
                         {/* Engine Info */}
-                        <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                        <div style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--border-glass)', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: loading ? 'var(--accent-orange)' : 'var(--accent-green)' }} />
-                                <span style={{ fontSize: '9px', fontWeight: '800', color: loading ? 'var(--accent-orange)' : 'var(--accent-green)' }}>{loading ? 'STREAMING_SESSION' : 'RCK_READY'}</span>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: loading ? '#FB923C' : '#34D399' }} />
+                                <span style={{ fontSize: '9px', fontWeight: '800', color: loading ? '#FB923C' : '#34D399' }}>{loading ? 'STREAMING_SESSION' : 'RCK_READY'}</span>
                             </div>
-                            <div style={{ fontSize: '9px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                            <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                                 PLUGIN: ALL-DOC-DRAWINGS-V1
                             </div>
                         </div>
@@ -235,7 +241,8 @@ const Dashboard = () => {
             </AnimatePresence>
 
             {/* Panel B: Command Center (Middle) */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', borderLeft: '1px solid var(--border-glass)', borderRight: '1px solid var(--border-glass)' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', borderRight: '1px solid var(--border-glass)' }}>
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '1px', background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0) 100%)', zIndex: 10 }} />
                 <div style={{ height: '64px', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', height: '100%' }}>
                         {!sidebarOpen && (
@@ -244,7 +251,7 @@ const Dashboard = () => {
                             </button>
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                            <h2 style={{ fontSize: '12px', fontWeight: '700', letterSpacing: '0.02em', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                            <h2 style={{ fontSize: '14px', fontWeight: '700', letterSpacing: '0.02em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
                                 Workspace
                             </h2>
                         </div>
@@ -301,20 +308,20 @@ const Dashboard = () => {
                                     className={msg.role === 'agent' ? "agent-chat-reply markdown-body" : ""}
                                     style={{
                                         maxWidth: '100%',
-                                        background: msg.role === 'user' ? 'rgba(255,255,255,0.05)' : msg.isError ? 'rgba(251, 113, 133, 0.1)' : 'transparent',
+                                        background: msg.role === 'user' ? 'rgba(0,0,0,0.03)' : msg.isError ? 'rgba(225, 29, 72, 0.05)' : 'transparent',
                                         padding: msg.role === 'user' ? '12px 16px' : msg.role === 'agent' ? '0' : '12px 16px',
                                         borderRadius: msg.role === 'user' ? '16px 16px 0 16px' : '8px',
                                         color: msg.isError ? 'var(--accent-red)' : 'var(--text-primary)',
                                         fontSize: '13px',
                                         lineHeight: '1.6',
-                                        border: msg.role === 'user' ? '1px solid rgba(255,255,255,0.05)' : 'none'
+                                        border: msg.role === 'user' ? '1px solid rgba(0,0,0,0.03)' : 'none'
                                     }}
                                 >
                                     {msg.role === 'agent' ? (() => {
                                         if (!msg.content) return null;
 
                                         // Split by tags: [IMAGE: ...], [TABLE: ...], [SUGGESTION: ...] OR ![alt](url)
-                                        const fragments = msg.content.split(/(\[IMAGE:\s*[\s\S]*?\]|\[TABLE:\s*[\s\S]*?\]|\[SUGGESTION:\s*[\s\S]*?\]|!\[.*?\]\(.*?\))/g);
+                                        const fragments = msg.content.split(/(\[IMAGE:\s*[\s\S]*?\]|\[TABLE:\s*[\s\S]*?\]|\[SUGGESTION:\s*[\s\S]*?\]|\[REFINE_FORM:\s*[\s\S]*?\]\s*\]|!\[.*?\]\(.*?\))/g);
 
                                         const handleDownload = async (src, alt) => {
                                             try {
@@ -435,7 +442,7 @@ const Dashboard = () => {
                                                                                         link.setAttribute("download", "RCK_Export.xls");
                                                                                         link.click();
                                                                                     }}
-                                                                                    style={{ padding: '4px 10px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                                                    style={{ padding: '4px 10px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent-primary)', border: '1px solid var(--accent-primary)', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                                                                                 >
                                                                                     <Download size={11} /> Export Excel
                                                                                 </button>
@@ -466,26 +473,71 @@ const Dashboard = () => {
                                                     // Case 5: [SUGGESTION: ...]
                                                     if (frag.startsWith('[SUGGESTION:')) {
                                                         const match = frag.match(/\[SUGGESTION:\s*([\s\S]*?)\]/i);
-                                                        const sugText = match ? match[1].trim() : "";
-                                                        if (sugText) {
+                                                        const sugContent = match ? match[1].trim() : "";
+                                                        if (sugContent) {
                                                             return (
                                                                 <button
                                                                     key={idx}
-                                                                    onClick={() => handleRunAnalysis(sugText)}
+                                                                    onClick={() => handleRunAnalysis(sugContent)}
                                                                     style={{
                                                                         display: 'inline-flex', alignItems: 'center', gap: '8px',
-                                                                        padding: '8px 16px', background: 'rgba(56, 189, 248, 0.08)',
+                                                                        padding: '8px 16px', background: '#FFFFFF',
                                                                         color: 'var(--accent-primary)', border: '1px solid rgba(56, 189, 248, 0.2)',
-                                                                        borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                                                                        borderRadius: '20px', fontSize: '11px', fontWeight: '600',
                                                                         cursor: 'pointer', transition: 'all 0.2s', margin: '4px 8px 4px 0'
                                                                     }}
-                                                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
-                                                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.08)'; e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.2)'; }}
+                                                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(2, 132, 199, 0.05)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
+                                                                    onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.2)'; }}
                                                                 >
                                                                     <MessageSquare size={13} />
-                                                                    {sugText}
+                                                                    {sugContent}
                                                                 </button>
                                                             );
+                                                        }
+                                                    }
+
+                                                    // Case 6: [REFINE_FORM: ...]
+                                                    if (frag.startsWith('[REFINE_FORM:')) {
+                                                        const match = frag.match(/\[REFINE_FORM:\s*([\s\S]*?)\]\s*\]/i);
+                                                        const formContent = match ? match[1].trim() : "";
+                                                        if (formContent) {
+                                                             try {
+                                                                let fields = [];
+                                                                try {
+                                                                    const sanitized = formContent.replace(/[\u201C\u201D\u2018\u2019]/g, '"');
+                                                                    fields = JSON.parse(sanitized);
+                                                                } catch (err) {
+                                                                    fields = formContent.replace(/[\[\]]/g, '')
+                                                                        .split(',')
+                                                                        .map(f => f.trim().replace(/^["']|["']$/g, ''))
+                                                                        .filter(f => f);
+                                                                }
+                                                                return (
+                                                                    <div key={idx} style={{ margin: '8px 0' }}>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setPendingSugText("Refine request with parameters:");
+                                                                                setRequiredFields(fields);
+                                                                                setParamsData({});
+                                                                                setIsParamModalOpen(true);
+                                                                            }}
+                                                                            style={{
+                                                                                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                                                                                padding: '8px 16px', background: 'rgba(56, 189, 248, 0.08)',
+                                                                                color: 'var(--accent-primary)', border: '1px solid var(--accent-primary)',
+                                                                                borderRadius: '20px', fontSize: '11px', fontWeight: 'bold',
+                                                                                cursor: 'pointer', transition: 'all 0.2s'
+                                                                            }}
+                                                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(2, 132, 199, 0.15)'; }}
+                                                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.08)'; }}
+                                                                        >
+                                                                            <Edit3 size={13} /> Fill Details Form
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            } catch (err) {
+                                                                return <div style={{ color: 'var(--accent-red)', fontSize: '11px', margin: '4px 0', background: 'rgba(225,29,72,0.05)', padding: '6px', borderRadius: '4px' }}>[Form Parse Error: {err.message} from: {formContent}]</div>;
+                                                            }
                                                         }
                                                     }
 
@@ -733,6 +785,70 @@ const Dashboard = () => {
                                 </AnimatePresence>
                             </div>
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Parameter Input Modal */}
+            <AnimatePresence>
+                {isParamModalOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="glass-panel"
+                            style={{ padding: '24px', width: '400px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-deep)', border: '1px solid var(--border-glass)' }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
+                                <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>Refine Prompt Details</h4>
+                                <button onClick={() => setIsParamModalOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+                            </div>
+
+                            <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Fill in any specific parameters (Optional) to enrich your request before submitting.</p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {requiredFields.map((field, idx) => (
+                                    <div key={idx}>
+                                        <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{field}</label>
+                                        <input
+                                            type="text"
+                                            value={paramsData[field] || ''}
+                                            onChange={(e) => setParamsData({ ...paramsData, [field]: e.target.value })}
+                                            placeholder={`Provide ${field}`}
+                                            style={{ width: '100%', padding: '10px 12px', background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.15)', borderRadius: '8px', color: '#111827', marginTop: '4px', fontSize: '12px', outline: 'none' }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    let addedText = " [Details: ";
+                                    Object.entries(paramsData).forEach(([key, val]) => {
+                                        if (val) addedText += `${key}=${val}, `;
+                                    });
+                                    addedText = addedText.replace(/,\s*$/, '') + "]";
+
+                                    if (addedText !== " [Details: ]") {
+                                        handleRunAnalysis(pendingSugText + addedText);
+                                    } else {
+                                        handleRunAnalysis(pendingSugText);
+                                    }
+
+                                    setIsParamModalOpen(false);
+                                    setParamsData({});
+                                }}
+                                style={{ padding: '10px', background: 'var(--accent-primary)', color: '#000', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', marginTop: '8px' }}
+                            >
+                                Submit Request
+                            </button>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
