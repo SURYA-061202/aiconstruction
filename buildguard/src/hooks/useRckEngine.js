@@ -56,7 +56,7 @@ export const useRckEngine = () => {
 
     try {
       const formData = new FormData();
-      if (primaryFile) formData.append('file', primaryFile);
+      if (primaryFile && primaryFile instanceof File) formData.append('file', primaryFile);
       if (checklistFile) formData.append('checklist', checklistFile);
       if (skillId) formData.append('skill', skillId);
       if (prompt) formData.append('prompt', prompt);
@@ -109,5 +109,5 @@ export const useRckEngine = () => {
     }
   }, []);
 
-  return { performValidation, stopValidation, loading, data, error, skills };
+  return { performValidation, stopValidation, loading, data, setData, error, skills };
 };

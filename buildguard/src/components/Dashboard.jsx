@@ -4,35 +4,37 @@ import {
     Activity, FileUp, Zap, FileIcon, FileText,
     MessageSquare, ClipboardCheck, ChevronDown,
     AlertCircle, Bot, User, Download, Image as ImageIcon,
-    Check, Loader, Circle, Edit3, Sparkles, X,
+    Check, Loader, Circle, Edit3, Sparkles, X, Plus,
     PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { useRckEngine } from '../hooks/useRckEngine';
 import ComplianceCard from './ComplianceCard';
 import ReactMarkdown from 'react-markdown';
+import { db } from '../firebase';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /* ═══════════════════════════════════════════
    DESIGN TOKENS — Warm Ivory / Ink-Blue
 ═══════════════════════════════════════════ */
 const C = {
-    canvas: '#F7F4EF',
-    surface: '#FDFCFA',
-    surfaceAlt: '#F0EDE6',
-    ink: '#1C2340',
-    inkLight: '#3D4A6B',
-    inkMuted: '#8A93A8',
-    inkFaint: '#C8CCDA',
-    accentBlue: '#1D3FA5',
-    accentTeal: '#0F8A7E',
-    accentRed: '#C53030',
-    accentAmber: '#B45309',
-    accentGreen: '#166534',
-    shadow: '0 1px 3px rgba(28,35,64,0.08), 0 4px 12px rgba(28,35,64,0.04)',
-    shadowMd: '0 4px 16px rgba(28,35,64,0.10), 0 1px 4px rgba(28,35,64,0.06)',
-    shadowLg: '0 12px 40px rgba(28,35,64,0.14), 0 2px 8px rgba(28,35,64,0.06)',
-    fontDisplay: '\'Playfair Display\', Georgia, serif',
-    fontBody: '\'DM Sans\', \'Helvetica Neue\', sans-serif',
-    fontMono: '\'JetBrains Mono\', \'Fira Code\', monospace',
+    canvas: '#F9FAFB',
+    surface: '#FFFFFF',
+    surfaceAlt: '#F3F4F6',
+    ink: '#111827',
+    inkLight: '#374151',
+    inkMuted: '#6B7280',
+    inkFaint: '#E5E7EB',
+    accentBlue: '#111827',
+    accentTeal: '#4B5563', 
+    accentRed: '#111827',  
+    accentAmber: '#6B7280', 
+    accentGreen: '#111827', 
+    shadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)',
+    shadowMd: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
+    shadowLg: '0 12px 40px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.04)',
+    fontDisplay: '"Inter", "SF Pro Display", system-ui, sans-serif',
+    fontBody: '"Inter", "SF Pro Text", system-ui, sans-serif',
+    fontMono: "'JetBrains Mono', 'Fira Code', monospace",
 };
 
 /* ═══════════════════════════════════════════
@@ -125,7 +127,12 @@ const Dashboard = () => {
     const [pendingSugText, setPendingSugText] = useState('');
     const [requiredFields, setRequiredFields] = useState([]);
     const [paramsData, setParamsData] = useState({});
+    const [sessions, setSessions] = useState([]);
+    const [activeSessionId, setActiveSessionId] = useState(null);
     const [loadStep, setLoadStep] = useState(0);
+    const [lastAutoOpenedId, setLastAutoOpenedId] = useState(null);
+    const [justGenerated, setJustGenerated] = useState(false);
+    const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
     const chatEndRef = useRef(null);
 
     const loadingSteps = [
@@ -136,7 +143,7 @@ const Dashboard = () => {
         'Synthesizing final response summary…',
     ];
 
-    const { performValidation, stopValidation, loading, data, error, skills } = useRckEngine();
+    const { performValidation, stopValidation, loading, data, setData, error, skills } = useRckEngine();
 
     useEffect(() => {
         let t;
@@ -148,22 +155,115 @@ const Dashboard = () => {
     }, [loading]);
 
     useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, loading]);
+        // Reset session-specific state buffers on session switch
+    useEffect(() => {
+        setPrimaryFile(null);
+        setChecklistFile(null);
+        setSelectedSkill('');
+        setPromptText('');
+        setParamsData({});
+        if (typeof setData === 'function') setData(null);
+    }, [activeSessionId]);
+
+    // Load Session List from Firebase
+    useEffect(() => {
+        if (!db) return;
+        const q = query(collection(db, "sessions"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setSessions(loaded);
+        }, (err) => console.error("Session errors:", err));
+        return () => unsubscribe();
+    }, []);
+
+    // Load Messages for Active Session
+    useEffect(() => {
+        if (!activeSessionId || !db) { setChatHistory([]); return; }
+        const q = query(collection(db, "sessions", activeSessionId, "messages"), orderBy("timestamp", "asc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const msgs = snapshot.docs.map(d => {
+                const data = d.data();
+                return { id: d.id, ...data, timestamp: data.timestamp?.toDate() || new Date() };
+            });
+            setChatHistory(msgs);
+            
+            // Restore session-specific uploaded file context visually
+            const fileMsg = msgs.find(m => m.file);
+            if (fileMsg && typeof setPrimaryFile === 'function') {
+                setPrimaryFile({ name: fileMsg.file });
+            }
+        }, (err) => console.error("Message errors:", err));
+        return () => unsubscribe();
+    }, [activeSessionId]);
+
+    // Auto-open REFINE_FORM modal when agent sends it
+    useEffect(() => {
+        if (chatHistory.length === 0) return;
+        const lastMsg = chatHistory[chatHistory.length - 1];
+        if (justGenerated && lastMsg.role === 'agent' && lastMsg.content.includes('[REFINE_FORM:')) {
+            const m = lastMsg.content.match(/\[REFINE_FORM:\s*([\s\S]*?)\]\s*\]/i);
+            const body = m?.[1]?.trim();
+            if (body) {
+                let fields = [];
+                try { fields = JSON.parse(body.replace(/[\u201C\u201D\u2018\u2019]/g, '"')); }
+                catch { fields = body.replace(/[\[\]]/g, '').split(',').map(f => f.trim().replace(/^["']|["']$/g, '')).filter(Boolean); }
+                
+                setJustGenerated(false);
+                setPendingSugText('Refine request with parameters:');
+                setRequiredFields(fields);
+                setParamsData({});
+                setIsParamModalOpen(true);
+                setLastAutoOpenedId(lastMsg.id); // mark as auto-opened
+            }
+        }
+    }, [chatHistory, lastAutoOpenedId, justGenerated]);
 
     const handleRunAnalysis = async (override) => {
         const prompt = typeof override === 'string' ? override : promptText;
         if (!primaryFile && !prompt && !selectedSkill) return;
+        
         const label = prompt || (selectedSkill
             ? `Executing Skill: ${skills.flatMap(c => c.skills).find(s => s.id === selectedSkill)?.name || selectedSkill}`
             : 'Run Analysis');
-        setChatHistory(p => [...p, { role: 'user', content: label, file: primaryFile?.name, timestamp: new Date() }]);
+
         setPromptText('');
+        let currentId = activeSessionId;
+        
         try {
+            if (!currentId) {
+                const docRef = await addDoc(collection(db, "sessions"), {
+                    title: label.slice(0, 35) + (label.length > 35 ? '...' : ''),
+                    createdAt: serverTimestamp()
+                });
+                currentId = docRef.id;
+                setActiveSessionId(currentId);
+            }
+
+            await addDoc(collection(db, "sessions", currentId, "messages"), {
+                role: 'user',
+                content: label,
+                file: primaryFile?.name || '',
+                timestamp: serverTimestamp()
+            });
+
             const res = await performValidation({ primaryFile, skillId: selectedSkill, prompt, checklistFile });
-            if (res?.chat_response)
-                setChatHistory(p => [...p, { role: 'agent', content: res.chat_response, timestamp: new Date() }]);
+            if (res?.chat_response) {
+                await addDoc(collection(db, "sessions", currentId, "messages"), {
+                    role: 'agent',
+                    content: res.chat_response,
+                    timestamp: serverTimestamp()
+                });
+                setJustGenerated(true);
+            }
         } catch (e) {
-            if (e.message !== 'Analysis stopped by user.')
-                setChatHistory(p => [...p, { role: 'system', content: `Error: ${e.message}`, isError: true, timestamp: new Date() }]);
+            if (e.message !== 'Analysis stopped by user.' && currentId) {
+                await addDoc(collection(db, "sessions", currentId, "messages"), {
+                    role: 'system',
+                    content: `Error: ${e.message}`,
+                    isError: true,
+                    timestamp: serverTimestamp()
+                });
+            }
         }
     };
 
@@ -448,14 +548,10 @@ const Dashboard = () => {
                                     justifyContent: 'space-between', borderBottom: `1px solid ${C.inkFaint}`
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                                        <div style={{
-                                            width: 34, height: 34, borderRadius: 9,
-                                            background: `linear-gradient(135deg, ${C.accentBlue} 0%, #2B5CE6 100%)`,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            boxShadow: `0 4px 14px ${C.accentBlue}35`
-                                        }}>
-                                            <Activity size={17} color="#fff" />
-                                        </div>
+                                        <img src="/images/indianinfra.png" alt="Logo" style={{ width: 34, height: 34, borderRadius: 9, objectFit: 'cover' }} />
+
+
+
                                         <div>
                                             <p style={{
                                                 fontSize: 14, fontWeight: 700, fontFamily: C.fontDisplay,
@@ -489,15 +585,65 @@ const Dashboard = () => {
                                         <Label>Agent Skillset</Label>
                                         {skills.length > 0 && (
                                             <div style={{ position: 'relative' }}>
-                                                <select value={selectedSkill} onChange={e => setSelectedSkill(e.target.value)} className="skill-select">
-                                                    <option value="">Select a Planning Agent Skill…</option>
-                                                    {skills.map(cat => (
-                                                        <optgroup key={cat.id} label={cat.name.toUpperCase()}>
-                                                            {cat.skills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                        </optgroup>
-                                                    ))}
-                                                </select>
-                                                <ChevronDown size={12} color={C.inkMuted} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                                                {/* Overlay transparent layer to close on Click Outside */}
+                                                {skillDropdownOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setSkillDropdownOpen(false)} />}
+                                                
+                                                <div onClick={() => setSkillDropdownOpen(!skillDropdownOpen)} style={{
+                                                    width: '100%', padding: '10px 12px', background: C.surface,
+                                                    border: `1px solid ${C.inkFaint}`, borderRadius: 8, textAlign: 'left',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                    cursor: 'pointer', fontFamily: C.fontBody, fontSize: 13, color: C.ink,
+                                                    position: 'relative', zIndex: 95
+                                                }}>
+                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {selectedSkill 
+                                                            ? skills.flatMap(c => c.skills).find(s => s.id === selectedSkill)?.name || 'Select Skill'
+                                                            : 'Select a Planning Agent Skill…'}
+                                                    </span>
+                                                    <ChevronDown size={13} color={C.inkMuted} style={{ transform: skillDropdownOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }} />
+                                                </div>
+
+                                                <AnimatePresence>
+                                                    {skillDropdownOpen && (
+                                                        <motion.div 
+                                                            initial={{ opacity: 0, y: 4 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: 4 }}
+                                                            transition={{ duration: 0.15 }}
+                                                            style={{
+                                                                position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                                                                background: C.surface, border: `1px solid ${C.inkFaint}`,
+                                                                borderRadius: 8, boxShadow: C.shadowMd, zIndex: 100,
+                                                                maxHeight: 240, overflowY: 'auto', padding: 4
+                                                            }} className="rck-scroll">
+                                                            
+                                                            <div onClick={() => { setSelectedSkill(''); setSkillDropdownOpen(false); }} style={{
+                                                                padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 6,
+                                                                color: C.inkMuted, transition: 'all 0.12s'
+                                                            }} onMouseEnter={e => { e.currentTarget.style.background = '#111827'; e.currentTarget.style.color = '#FFFFFF'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.inkMuted; }}>
+                                                                Select a Planning Agent Skill…
+                                                            </div>
+
+                                                            {skills.map(cat => (
+                                                                <div key={cat.id}>
+                                                                    <div style={{ padding: '6px 12px 3px', fontSize: 9, fontWeight: 700, color: C.accentBlue, fontFamily: C.fontMono, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 4 }}>
+                                                                        {cat.name}
+                                                                    </div>
+                                                                    {cat.skills.map(s => (
+                                                                        <div key={s.id} onClick={() => { setSelectedSkill(s.id); setSkillDropdownOpen(false); }} style={{
+                                                                            padding: '7px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 6,
+                                                                            color: selectedSkill === s.id ? '#FFFFFF' : C.ink,
+                                                                            background: selectedSkill === s.id ? '#111827' : 'transparent',
+                                                                            transition: 'all 0.12s', display: 'flex', alignItems: 'center', gap: 6
+                                                                        }} onMouseEnter={e => { if (selectedSkill !== s.id) { e.currentTarget.style.background = '#111827'; e.currentTarget.style.color = '#FFFFFF'; } }} onMouseLeave={e => { if (selectedSkill !== s.id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.ink; } }}>
+                                                                            {s.name}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ))}
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
                                         )}
                                     </div>
@@ -506,14 +652,46 @@ const Dashboard = () => {
                                     <div style={{ height: 1, background: C.inkFaint }} />
 
                                     {/* Uploads */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                        <UploadZone file={primaryFile} onFile={setPrimaryFile} id="primary-upload"
-                                            label="Target Plan (PDF/DOCX)" Icon={FileUp} color={C.accentBlue} />
-                                        <UploadZone file={checklistFile} onFile={setChecklistFile} id="checklist-upload"
-                                            label="Optional Checklist" Icon={ClipboardCheck} color={C.accentTeal} />
+{/* Sessions History */}
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                            <Label style={{ marginBottom: 0 }}>Recent Sessions</Label>
+                                            <button onClick={() => setActiveSessionId(null)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px',
+                                                    background: `${C.accentBlue}10`, color: C.accentBlue, border: `1px solid ${C.accentBlue}25`,
+                                                    borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: C.fontBody,
+                                                    transition: 'all 0.15s'
+                                                }}>
+                                                <Plus size={11} /> New
+                                            </button>
+                                        </div>
+                                        <div className="rck-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, paddingRight: 4 }}>
+                                            {sessions.length === 0 ? (
+                                                <p style={{ fontSize: 11, color: C.inkMuted, fontStyle: 'italic', textAlign: 'center', marginTop: 10 }}>No recent sessions</p>
+                                            ) : (
+                                                sessions.map(s => (
+                                                    <button key={s.id} onClick={() => setActiveSessionId(s.id)}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                                                            background: s.id === activeSessionId ? `${C.accentBlue}08` : C.surfaceAlt,
+                                                            border: s.id === activeSessionId ? `1px solid ${C.accentBlue}15` : `1px solid ${C.inkFaint}30`,
+                                                            borderRadius: 8, cursor: 'pointer', textAlign: 'left', width: '100%',
+                                                            transition: 'all 0.15s'
+                                                        }}
+                                                        onMouseEnter={e => { if (s.id !== activeSessionId) e.currentTarget.style.background = `${C.accentBlue}04`; }}
+                                                        onMouseLeave={e => { if (s.id !== activeSessionId) e.currentTarget.style.background = C.surfaceAlt; }}>
+                                                        <MessageSquare size={14} color={C.inkLight} />
+                                                        <span style={{ fontSize: 12, fontWeight: s.id === activeSessionId ? 600 : 500, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {s.title}
+                                                        </span>
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div style={{ flex: 1 }} />
+                                    {/* fluid spacer removed for expansion */}
 
                                     {/* Engine status */}
                                     <div style={{
@@ -747,15 +925,25 @@ const Dashboard = () => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
                                             if (!primaryFile && !promptText && !selectedSkill) { alert('Please upload a plan, enter a prompt, or select a skill.'); return; }
+                                            if (primaryFile && typeof primaryFile.size === 'undefined') { alert('Please re-upload the file to execute analysis.'); return; }
                                             handleRunAnalysis();
                                         }
                                     }}
                                 />
-                                <div style={{ position: 'absolute', right: 12, bottom: 12 }}>
+                                <div style={{ position: 'absolute', right: 12, bottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <input type="file" id="prompt-file" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) setPrimaryFile(e.target.files[0]); }} />
+                                    <label htmlFor="prompt-file" style={{
+                                        width: 32, height: 32, background: C.surfaceAlt, border: `1px solid ${C.inkFaint}`,
+                                        borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', color: C.inkLight, transition: 'all 0.15s'
+                                    }} onMouseEnter={e => e.currentTarget.style.background = `${C.inkFaint}50`} onMouseLeave={e => e.currentTarget.style.background = C.surfaceAlt}>
+                                        <FileUp size={14} />
+                                    </label>
                                     {loading
                                         ? <button className="stop-btn" onClick={stopValidation}>Stop <Zap size={11} /></button>
                                         : <button className="exec-btn" onClick={() => {
                                             if (!primaryFile && !promptText && !selectedSkill) { alert('Please upload a plan, enter a prompt, or select a skill.'); return; }
+                                            if (primaryFile && typeof primaryFile.size === 'undefined') { alert('Please re-upload the file to execute analysis.'); return; }
                                             handleRunAnalysis();
                                         }}>Execute <Zap size={11} /></button>
                                     }
