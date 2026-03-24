@@ -6,11 +6,28 @@ import { useState, useCallback, useEffect, useRef } from 'react';
  */
 const FALLBACK_SKILLS = [
   {
+    id: 'general',
+    name: 'General',
+    skills: [
+      { id: 'drawing_compliance', name: 'Drawing Compliance / Hallucination Detection' }
+    ]
+  },
+  {
     id: 'construction',
     name: 'Construction Scheduler',
     skills: [
       { id: 'schedule_analysis', name: 'Schedule Analysis' },
       { id: 'automated_schedule_generation', name: 'Automated Schedule Generation' }
+    ]
+  },
+  {
+    id: 'boq',
+    name: 'BOQ Agent',
+    skills: [
+      { id: 'quantity_computation', name: 'Quantity Computation' },
+      { id: 'cost_estimate', name: 'Cost Estimation' },
+      { id: 'report_generation', name: 'Report Generation' },
+      { id: 'document_parsing', name: 'Document Parsing' }
     ]
   }
 ];
@@ -19,12 +36,12 @@ export const useRckEngine = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [skills, setSkills] = useState([]);
+  const [skills, setSkills] = useState(FALLBACK_SKILLS);
   const abortControllerRef = useRef(null);
 
   const fetchSkills = useCallback(async () => {
     try {
-      const response = await fetch('http://187.127.129.173:8080/v1/health', {
+      const response = await fetch('https://api.immersiveinsights.app/v1', {
         method: 'GET',
         headers: { 'x-api-key': 'rck_live_51e4987fe5d62c5d966a5692d09ef4e1' }
       });
@@ -49,7 +66,8 @@ export const useRckEngine = () => {
     primaryFile,
     skillId,
     prompt = '',
-    checklistFile = null
+    checklistFile = null,
+    backendSessionId = null
   }) => {
     setLoading(true);
     setError(null);
@@ -67,10 +85,11 @@ export const useRckEngine = () => {
       // Explicit construction domain options
       formData.append('options', JSON.stringify({
         domain: "construction",
-        mock_mode: true
+        mock_mode: false,
+        session_id: backendSessionId
       }));
 
-      const response = await fetch(`http://localhost:8000/v1/analyse/aec-drawings-v1`, {
+      const response = await fetch(`https://api.immersiveinsights.app/v1/analyse/aec-drawings-v1`, {
         method: 'POST',
         headers: {
           'x-api-key': 'rck_live_51e4987fe5d62c5d966a5692d09ef4e1'

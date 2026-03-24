@@ -10,7 +10,8 @@ import {
 import { useRckEngine } from '../hooks/useRckEngine';
 import ComplianceCard from './ComplianceCard';
 import ReactMarkdown from 'react-markdown';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
+import { signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /* ═══════════════════════════════════════════
@@ -168,7 +169,7 @@ const Dashboard = () => {
     // Load Session List from Firebase
     useEffect(() => {
         if (!db) return;
-        const q = query(collection(db, "sessions"), orderBy("createdAt", "desc"));
+        const q = query(collection(db, "users", auth.currentUser.uid, "sessions"), orderBy("createdAt", "desc"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setSessions(loaded);
@@ -179,7 +180,7 @@ const Dashboard = () => {
     // Load Messages for Active Session
     useEffect(() => {
         if (!activeSessionId || !db) { setChatHistory([]); return; }
-        const q = query(collection(db, "sessions", activeSessionId, "messages"), orderBy("timestamp", "asc"));
+        const q = query(collection(db, "users", auth.currentUser.uid, "sessions", activeSessionId, "messages"), orderBy("timestamp", "asc"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(d => {
                 const data = d.data();
@@ -231,7 +232,7 @@ const Dashboard = () => {
         
         try {
             if (!currentId) {
-                const docRef = await addDoc(collection(db, "sessions"), {
+                const docRef = await addDoc(collection(db, "users", auth.currentUser.uid, "sessions"), {
                     title: label.slice(0, 35) + (label.length > 35 ? '...' : ''),
                     createdAt: serverTimestamp()
                 });
@@ -239,7 +240,7 @@ const Dashboard = () => {
                 setActiveSessionId(currentId);
             }
 
-            await addDoc(collection(db, "sessions", currentId, "messages"), {
+            await addDoc(collection(db, "users", auth.currentUser.uid, "sessions", currentId, "messages"), {
                 role: 'user',
                 content: label,
                 file: primaryFile?.name || '',
@@ -248,7 +249,7 @@ const Dashboard = () => {
 
             const res = await performValidation({ primaryFile, skillId: selectedSkill, prompt, checklistFile });
             if (res?.chat_response) {
-                await addDoc(collection(db, "sessions", currentId, "messages"), {
+                await addDoc(collection(db, "users", auth.currentUser.uid, "sessions", currentId, "messages"), {
                     role: 'agent',
                     content: res.chat_response,
                     timestamp: serverTimestamp()
@@ -257,7 +258,7 @@ const Dashboard = () => {
             }
         } catch (e) {
             if (e.message !== 'Analysis stopped by user.' && currentId) {
-                await addDoc(collection(db, "sessions", currentId, "messages"), {
+                await addDoc(collection(db, "users", auth.currentUser.uid, "sessions", currentId, "messages"), {
                     role: 'system',
                     content: `Error: ${e.message}`,
                     isError: true,
@@ -538,14 +539,15 @@ const Dashboard = () => {
                             style={{
                                 height: '100%', background: C.surface,
                                 borderRight: `1px solid ${C.inkFaint}`, flexShrink: 0, overflow: 'hidden',
-                                boxShadow: '2px 0 16px rgba(28,35,64,0.06)'
+                                boxShadow: '2px 0 16px rgba(28,35,64,0.06)',
+                                display: 'flex', flexDirection: 'column'
                             }}>
-                            <div className="rck-scroll" style={{ width: 284, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ width: 284, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
                                 {/* Logo / Wordmark */}
                                 <div style={{
                                     height: 64, padding: '0 20px', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'space-between', borderBottom: `1px solid ${C.inkFaint}`
+                                    justifyContent: 'space-between', borderBottom: `1px solid ${C.inkFaint}`, flexShrink: 0
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                                         <img src="/images/indianinfra.png" alt="Logo" style={{ width: 34, height: 34, borderRadius: 9, objectFit: 'cover' }} />
@@ -693,24 +695,37 @@ const Dashboard = () => {
 
                                     {/* fluid spacer removed for expansion */}
 
-                                    {/* Engine status */}
-                                    <div style={{
-                                        padding: '13px 15px', background: loading ? `${C.accentAmber}08` : `${C.accentGreen}08`,
-                                        borderRadius: 10, border: `1px solid ${loading ? C.accentAmber : C.accentGreen}25`
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                            <StatusDot live={loading} />
-                                            <span style={{
-                                                fontSize: 9, fontWeight: 700, fontFamily: C.fontMono, letterSpacing: '0.12em',
-                                                color: loading ? C.accentAmber : C.accentGreen
-                                            }}>
-                                                {loading ? 'STREAMING_SESSION' : 'RCK_READY'}
-                                            </span>
-                                        </div>
-                                        <p style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono, letterSpacing: '0.06em' }}>
-                                            PLUGIN: ALL-DOC-DRAWINGS-V1
-                                        </p>
+                                    
+                                </div>
+                            </div>
+
+                            <div style={{ padding: '16px', borderTop: 'none', display: 'flex', flexDirection: 'column', gap: 12, background: C.surface, flexShrink: 0, zIndex: 110 }}>
+                                {/* Engine status */}
+                                <div style={{
+                                    padding: '13px 15px', background: loading ? `${C.accentAmber}08` : `${C.accentGreen}08`,
+                                    borderRadius: 10, border: `1px solid ${loading ? C.accentAmber : C.accentGreen}25`
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <StatusDot live={loading} />
+                                        <span style={{
+                                            fontSize: 9, fontWeight: 700, fontFamily: C.fontMono, letterSpacing: '0.12em',
+                                            color: loading ? C.accentAmber : C.accentGreen
+                                        }}>
+                                            {loading ? 'STREAMING_SESSION' : 'RCK_READY'}
+                                        </span>
                                     </div>
+                                    <p style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono, letterSpacing: '0.06em' }}>
+                                        PLUGIN: ALL-DOC-DRAWINGS-V1
+                                    </p>
+                                </div>
+
+                                {/* User Profile & Logout */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: `1px solid ${C.inkFaint}` }}>
+                                    <div>
+                                        <p style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{auth.currentUser?.email?.split('@')[0] || 'User'}</p>
+                                        <p style={{ fontSize: 9, color: '#6B7280' }}>{auth.currentUser?.email}</p>
+                                    </div>
+                                    <button onClick={() => { signOut(auth); }} style={{ background: 'transparent', border: '1px solid #EF444430', cursor: 'pointer', color: '#EF4444', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 6 }}>Logout</button>
                                 </div>
                             </div>
                         </motion.aside>

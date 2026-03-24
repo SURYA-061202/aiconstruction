@@ -7,12 +7,12 @@ const ComplianceCard = ({ item, index }) => {
     const rawStatus = String(item.status || (item.isSafe ? 'PASS' : 'FAIL')).toUpperCase().trim();
 
     // Categorize status for color and icon
-    const isPass = ['PASS', 'PASSED', 'TRUE', 'SAFE', 'OK'].includes(rawStatus) || item.isSafe === true;
+    const isPass = ['PASS', 'PASSED', 'TRUE', 'SAFE', 'OK', 'COMPLIANT'].includes(rawStatus) || item.isSafe === true;
     const isNeutral = ['NOT APPLICABLE', 'N/A', 'NOT POSSIBLE', 'UNKNOWN'].includes(rawStatus);
     const isError = ['ERROR', 'WITH ERROR', 'FAILED_TO_PARSE'].includes(rawStatus);
     const isFail = !isPass && !isNeutral && !isError;
 
-    const label = item.description || item.label || 'Unknown Check';
+    const label = item.description || item.clause_reference || item.name || item.label || (item.element_id ? `Compliance: ${item.element_id}` : 'Unknown Check');
     const rationale = (item.rationale && item.rationale.trim()) ||
         (item.evidence && item.evidence.trim()) ||
         (item.justification && item.justification.trim()) ||
