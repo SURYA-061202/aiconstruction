@@ -5,14 +5,15 @@ import {
     MessageSquare, ClipboardCheck, ChevronDown,
     AlertCircle, Bot, User, Download, Image as ImageIcon,
     Check, Loader, Circle, Edit3, Sparkles, X, Plus,
-    PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen
+    PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
+    Maximize2, Minimize2, MoreVertical, Trash2, Edit2
 } from 'lucide-react';
 import { useRckEngine } from '../hooks/useRckEngine';
 import ComplianceCard from './ComplianceCard';
 import ReactMarkdown from 'react-markdown';
 import { db, auth } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
 /* ═══════════════════════════════════════════
    DESIGN TOKENS — Warm Ivory / Ink-Blue
@@ -120,6 +121,7 @@ const Dashboard = () => {
     const [primaryFile, setPrimaryFile] = useState(null);
     const [checklistFile, setChecklistFile] = useState(null);
     const [selectedSkill, setSelectedSkill] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState(null);
     const [promptText, setPromptText] = useState('');
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [ledgerOpen, setLedgerOpen] = useState(true);
@@ -133,8 +135,18 @@ const Dashboard = () => {
     const [loadStep, setLoadStep] = useState(0);
     const [lastAutoOpenedId, setLastAutoOpenedId] = useState(null);
     const [justGenerated, setJustGenerated] = useState(false);
+    
+    // Session Sidebar Context Handlers
+    const [hoveredSessionId, setHoveredSessionId] = useState(null);
+    const [openSessionMenuId, setOpenSessionMenuId] = useState(null);
+    const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+    const [sessionToRename, setSessionToRename] = useState(null);
+    const [newSessionName, setNewSessionName] = useState('');
+    const [ledgerExpanded, setLedgerExpanded] = useState(false);
+
     const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
     const chatEndRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     const loadingSteps = [
         'Initializing RCK Intelligence framework…',
@@ -158,12 +170,9 @@ const Dashboard = () => {
     useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, loading]);
         // Reset session-specific state buffers on session switch
     useEffect(() => {
-        setPrimaryFile(null);
-        setChecklistFile(null);
-        setSelectedSkill('');
         setPromptText('');
         setParamsData({});
-        if (typeof setData === 'function') setData(null);
+        setJustGenerated(false);
     }, [activeSessionId]);
 
     // Load Session List from Firebase
@@ -187,12 +196,6 @@ const Dashboard = () => {
                 return { id: d.id, ...data, timestamp: data.timestamp?.toDate() || new Date() };
             });
             setChatHistory(msgs);
-            
-            // Restore session-specific uploaded file context visually
-            const fileMsg = msgs.find(m => m.file);
-            if (fileMsg && typeof setPrimaryFile === 'function') {
-                setPrimaryFile({ name: fileMsg.file });
-            }
         }, (err) => console.error("Message errors:", err));
         return () => unsubscribe();
     }, [activeSessionId]);
@@ -248,6 +251,12 @@ const Dashboard = () => {
             });
 
             const res = await performValidation({ primaryFile, skillId: selectedSkill, prompt, checklistFile });
+            if (res) {
+                await updateDoc(doc(db, "users", auth.currentUser.uid, "sessions", currentId), {
+                    ledgerData: JSON.stringify(res),
+                    skillId: selectedSkill || ''
+                });
+            }
             if (res?.chat_response) {
                 await addDoc(collection(db, "users", auth.currentUser.uid, "sessions", currentId, "messages"), {
                     role: 'agent',
@@ -265,7 +274,43 @@ const Dashboard = () => {
                     timestamp: serverTimestamp()
                 });
             }
+        } finally {
+            setPrimaryFile(null);
+            setChecklistFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
+    };
+
+    const handleDeleteSession = async (id) => {
+        try {
+            await deleteDoc(doc(db, "users", auth.currentUser.uid, "sessions", id));
+            if (activeSessionId === id) {
+                setActiveSessionId(null);
+                setSelectedSkill('');
+                setSelectedCategory(null);
+                setPrimaryFile(null);
+                if (typeof setData === 'function') setData(null);
+            }
+        } catch (error) {
+            console.error("Error deleting session:", error);
+        }
+        setOpenSessionMenuId(null);
+    };
+
+    const handleUpdateSessionName = async (e) => {
+        e.preventDefault();
+        if (!sessionToRename || !newSessionName.trim()) return;
+        try {
+            await updateDoc(doc(db, "users", auth.currentUser.uid, "sessions", sessionToRename.id), {
+                title: newSessionName.trim()
+            });
+            setIsRenameModalOpen(false);
+            setSessionToRename(null);
+            setNewSessionName('');
+        } catch (error) {
+            console.error("Error updating session name:", error);
+        }
+        setOpenSessionMenuId(null);
     };
 
     const axis2 = data?.axis_detail?.axis2_output?.compliance || data?.axis2_output?.compliance || data?.checklist_results || [];
@@ -513,7 +558,7 @@ const Dashboard = () => {
                 .prompt-box:focus{border-color:${C.accentBlue};box-shadow:0 0 0 3px ${C.accentBlue}14,0 1px 4px rgba(28,35,64,0.06)}
                 .prompt-box::placeholder{color:${C.inkMuted}}
                 .exec-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:${C.accentBlue};color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:${C.fontBody};letter-spacing:.03em;transition:all .15s;white-space:nowrap}
-                .exec-btn:hover{background:#1534a0;transform:translateY(-1px);box-shadow:0 4px 14px ${C.accentBlue}40}
+                .exec-btn:hover{background:#000000;transform:translateY(-1px);box-shadow:0 4px 14px ${C.accentBlue}40}
                 .stop-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;background:#fff;color:${C.accentRed};border:1.5px solid ${C.accentRed}40;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:${C.fontBody};transition:all .15s}
                 .stop-btn:hover{background:${C.accentRed}08}
                 .skill-select{width:100%;padding:9px 32px 9px 12px;background:${C.surface};border:1.5px solid ${C.inkFaint};border-radius:8px;color:${C.ink};font-size:12px;font-family:${C.fontBody};cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;transition:border-color .2s;box-shadow:0 1px 3px rgba(28,35,64,0.04)}
@@ -580,7 +625,7 @@ const Dashboard = () => {
                                 </div>
 
                                 {/* Content */}
-                                <div style={{ padding: '24px 18px', display: 'flex', flexDirection: 'column', gap: 26, flex: 1 }}>
+                                <div style={{ padding: '24px 18px', display: 'flex', flexDirection: 'column', gap: 26, flex: 1, minHeight: 0 }}>
 
                                     {/* Skillset */}
                                     <div>
@@ -619,20 +664,34 @@ const Dashboard = () => {
                                                                 maxHeight: 240, overflowY: 'auto', padding: 4
                                                             }} className="rck-scroll">
                                                             
-                                                            <div onClick={() => { setSelectedSkill(''); setSkillDropdownOpen(false); }} style={{
+                                                            <div onClick={() => { setSelectedSkill(''); setSelectedCategory(null); setSkillDropdownOpen(false); }} style={{
                                                                 padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 6,
                                                                 color: C.inkMuted, transition: 'all 0.12s'
                                                             }} onMouseEnter={e => { e.currentTarget.style.background = '#111827'; e.currentTarget.style.color = '#FFFFFF'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.inkMuted; }}>
                                                                 Select a Planning Agent Skill…
                                                             </div>
 
-                                                            {skills.map(cat => (
-                                                                <div key={cat.id}>
-                                                                    <div style={{ padding: '6px 12px 3px', fontSize: 9, fontWeight: 700, color: C.accentBlue, fontFamily: C.fontMono, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 4 }}>
+                                                            {!selectedCategory ? (
+                                                                skills.map(cat => (
+                                                                    <div key={cat.id} onClick={(e) => { e.stopPropagation(); setSelectedCategory(cat.id); }} style={{
+                                                                        padding: '8px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 6,
+                                                                        color: C.ink, transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                                                    }} onMouseEnter={e => { e.currentTarget.style.background = '#111827'; e.currentTarget.style.color = '#FFFFFF'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.ink; }}>
                                                                         {cat.name}
+                                                                        <ChevronDown size={14} style={{ transform: 'rotate(-90deg)' }} />
                                                                     </div>
-                                                                    {cat.skills.map(s => (
-                                                                        <div key={s.id} onClick={() => { setSelectedSkill(s.id); setSkillDropdownOpen(false); }} style={{
+                                                                ))
+                                                            ) : (
+                                                                <>
+                                                                    <div onClick={(e) => { e.stopPropagation(); setSelectedCategory(null); }} style={{
+                                                                        padding: '8px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 6,
+                                                                        color: C.inkMuted, transition: 'all 0.12s', display: 'flex', alignItems: 'center', gap: 6,
+                                                                        marginBottom: 4, background: C.surfaceAlt, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase'
+                                                                    }} onMouseEnter={e => { e.currentTarget.style.background = C.inkFaint; }} onMouseLeave={e => { e.currentTarget.style.background = C.surfaceAlt; }}>
+                                                                        <ChevronDown size={13} style={{ transform: 'rotate(90deg)' }} /> {skills.find(c => c.id === selectedCategory)?.name || 'Back'}
+                                                                    </div>
+                                                                    {skills.find(c => c.id === selectedCategory)?.skills.map(s => (
+                                                                        <div key={s.id} onClick={(e) => { e.stopPropagation(); setSelectedSkill(s.id); setSkillDropdownOpen(false); setSelectedCategory(null); }} style={{
                                                                             padding: '7px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 6,
                                                                             color: selectedSkill === s.id ? '#FFFFFF' : C.ink,
                                                                             background: selectedSkill === s.id ? '#111827' : 'transparent',
@@ -641,8 +700,8 @@ const Dashboard = () => {
                                                                             {s.name}
                                                                         </div>
                                                                     ))}
-                                                                </div>
-                                                            ))}
+                                                                </>
+                                                            )}
                                                         </motion.div>
                                                     )}
                                                 </AnimatePresence>
@@ -658,7 +717,7 @@ const Dashboard = () => {
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                                             <Label style={{ marginBottom: 0 }}>Recent Sessions</Label>
-                                            <button onClick={() => setActiveSessionId(null)}
+                                            <button onClick={() => { setActiveSessionId(null); setSelectedSkill(''); setSelectedCategory(null); setPrimaryFile(null); if (typeof setData === 'function') setData(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                                                 style={{
                                                     display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px',
                                                     background: `${C.accentBlue}10`, color: C.accentBlue, border: `1px solid ${C.accentBlue}25`,
@@ -668,26 +727,77 @@ const Dashboard = () => {
                                                 <Plus size={11} /> New
                                             </button>
                                         </div>
+                                        {openSessionMenuId && <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setOpenSessionMenuId(null)} />}
                                         <div className="rck-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, paddingRight: 4 }}>
                                             {sessions.length === 0 ? (
                                                 <p style={{ fontSize: 11, color: C.inkMuted, fontStyle: 'italic', textAlign: 'center', marginTop: 10 }}>No recent sessions</p>
                                             ) : (
                                                 sessions.map(s => (
-                                                    <button key={s.id} onClick={() => setActiveSessionId(s.id)}
-                                                        style={{
-                                                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-                                                            background: s.id === activeSessionId ? `${C.accentBlue}08` : C.surfaceAlt,
-                                                            border: s.id === activeSessionId ? `1px solid ${C.accentBlue}15` : `1px solid ${C.inkFaint}30`,
-                                                            borderRadius: 8, cursor: 'pointer', textAlign: 'left', width: '100%',
-                                                            transition: 'all 0.15s'
-                                                        }}
-                                                        onMouseEnter={e => { if (s.id !== activeSessionId) e.currentTarget.style.background = `${C.accentBlue}04`; }}
-                                                        onMouseLeave={e => { if (s.id !== activeSessionId) e.currentTarget.style.background = C.surfaceAlt; }}>
-                                                        <MessageSquare size={14} color={C.inkLight} />
-                                                        <span style={{ fontSize: 12, fontWeight: s.id === activeSessionId ? 600 : 500, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            {s.title}
-                                                        </span>
-                                                    </button>
+                                                    <div key={s.id} style={{ position: 'relative' }} 
+                                                        onMouseEnter={() => setHoveredSessionId(s.id)}
+                                                        onMouseLeave={() => setHoveredSessionId(null)}>
+                                                        
+                                                        <button onClick={() => { setActiveSessionId(s.id); setSelectedSkill(s.skillId || ''); setSelectedCategory(null); setPrimaryFile(null); if (typeof setData === 'function') { try { setData(typeof s.ledgerData === 'string' ? JSON.parse(s.ledgerData) : (s.ledgerData || null)); } catch(e) { setData(s.ledgerData || null); } } if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                                                                background: s.id === activeSessionId ? `${C.accentBlue}08` : C.surfaceAlt,
+                                                                border: s.id === activeSessionId ? `1px solid ${C.accentBlue}15` : `1px solid ${C.inkFaint}30`,
+                                                                borderRadius: 8, cursor: 'pointer', textAlign: 'left', width: '100%',
+                                                                transition: 'all 0.15s'
+                                                            }}
+                                                            onMouseEnter={e => { if (s.id !== activeSessionId) e.currentTarget.style.background = `${C.accentBlue}04`; }}
+                                                            onMouseLeave={e => { if (s.id !== activeSessionId) e.currentTarget.style.background = C.surfaceAlt; }}>
+                                                            <MessageSquare size={14} color={C.inkLight} />
+                                                            <span style={{ fontSize: 12, fontWeight: s.id === activeSessionId ? 600 : 500, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {s.title}
+                                                            </span>
+                                                        </button>
+
+                                                        {/* 3-dots Context Menu Trigger */}
+                                                        {(hoveredSessionId === s.id || openSessionMenuId === s.id) && (
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setOpenSessionMenuId(openSessionMenuId === s.id ? null : s.id); }}
+                                                                style={{
+                                                                    position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                                                                    background: openSessionMenuId === s.id ? C.surfaceAlt : 'transparent',
+                                                                    border: 'none', borderRadius: 4, padding: 4, cursor: 'pointer',
+                                                                    color: C.inkMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
+                                                                    transition: 'all .15s'
+                                                                }}
+                                                                onMouseEnter={e => e.currentTarget.style.background = C.surfaceAlt}
+                                                                onMouseLeave={e => { if (openSessionMenuId !== s.id) e.currentTarget.style.background = 'transparent'; }}>
+                                                                <MoreVertical size={14} />
+                                                            </button>
+                                                        )}
+
+                                                        {/* Context Menu Dropdown */}
+                                                        <AnimatePresence>
+                                                            {openSessionMenuId === s.id && (
+                                                                <motion.div
+                                                                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                                                                    transition={{ duration: 0.1 }}
+                                                                    style={{
+                                                                        position: 'absolute', right: 8, top: 'calc(50% + 14px)',
+                                                                        background: C.surface, border: `1px solid ${C.inkFaint}`,
+                                                                        borderRadius: 8, boxShadow: C.shadowLg, zIndex: 100,
+                                                                        padding: 4, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 120
+                                                                    }}>
+                                                                    <button onClick={(e) => { e.stopPropagation(); setSessionToRename(s); setNewSessionName(s.title); setIsRenameModalOpen(true); setOpenSessionMenuId(null); }}
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'transparent', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, color: C.inkLight, cursor: 'pointer', transition: 'all .1s' }}
+                                                                        onMouseEnter={e => { e.currentTarget.style.background = C.surfaceAlt; e.currentTarget.style.color = C.ink; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.inkLight; }}>
+                                                                        <Edit2 size={12} /> Rename
+                                                                    </button>
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'transparent', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, color: C.accentRed, cursor: 'pointer', transition: 'all .1s' }}
+                                                                        onMouseEnter={e => { e.currentTarget.style.background = `${C.accentRed}12`; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                                                                        <Trash2 size={12} /> Delete
+                                                                    </button>
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </div>
                                                 ))
                                             )}
                                         </div>
@@ -855,7 +965,7 @@ const Dashboard = () => {
                                     </div>
 
                                     <span style={{ fontSize: 9, color: C.inkMuted, fontFamily: C.fontMono }}>
-                                        {msg.timestamp?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {msg.timestamp?.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </motion.div>
                             ))}
@@ -946,7 +1056,7 @@ const Dashboard = () => {
                                     }}
                                 />
                                 <div style={{ position: 'absolute', right: 12, bottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <input type="file" id="prompt-file" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) setPrimaryFile(e.target.files[0]); }} />
+                                    <input type="file" id="prompt-file" ref={fileInputRef} style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) setPrimaryFile(e.target.files[0]); }} />
                                     <label htmlFor="prompt-file" style={{
                                         width: 32, height: 32, background: C.surfaceAlt, border: `1px solid ${C.inkFaint}`,
                                         borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -984,7 +1094,7 @@ const Dashboard = () => {
                     {hasLedger && ledgerOpen && (
                         <motion.aside
                             initial={{ width: 0, opacity: 0 }}
-                            animate={{ width: sidebarOpen ? 370 : 460, opacity: 1 }}
+                            animate={{ width: ledgerExpanded ? (sidebarOpen ? 'calc(50vw - 140px)' : '60vw') : (sidebarOpen ? 370 : 460), opacity: 1 }}
                             exit={{ width: 0, opacity: 0 }}
                             transition={{ duration: 0.25, ease: 'easeInOut' }}
                             style={{
@@ -992,7 +1102,7 @@ const Dashboard = () => {
                                 borderLeft: `1px solid ${C.inkFaint}`, flexShrink: 0, overflow: 'hidden',
                                 boxShadow: '-2px 0 16px rgba(28,35,64,0.06)'
                             }}>
-                            <div style={{ width: sidebarOpen ? 370 : 460, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
 
                                 {/* Ledger header */}
                                 <div style={{
@@ -1012,10 +1122,18 @@ const Dashboard = () => {
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                         {esreScore !== null && <Chip color={C.accentBlue}>{esreScore}% reliable</Chip>}
-                                        <button onClick={() => setLedgerOpen(false)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMuted, display: 'flex', padding: 4 }}>
-                                            <PanelRightClose size={15} />
-                                        </button>
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            <button onClick={() => setLedgerExpanded(!ledgerExpanded)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMuted, display: 'flex', padding: 4 }}
+                                                title={ledgerExpanded ? "Minimize Ledger" : "Maximize Ledger"}>
+                                                {ledgerExpanded ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
+                                            </button>
+                                            <button onClick={() => { setLedgerOpen(false); setLedgerExpanded(false); }}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.inkMuted, display: 'flex', padding: 4 }}
+                                                title="Close Ledger">
+                                                <PanelRightClose size={15} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1092,6 +1210,43 @@ const Dashboard = () => {
                     )}
                 </AnimatePresence>
 
+                {/* ══════════ RENAME MODAL ══════════ */}
+                <AnimatePresence>
+                    {isRenameModalOpen && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            style={{
+                                position: 'fixed', inset: 0, background: 'rgba(28,35,64,0.30)',
+                                backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', zIndex: 1000
+                            }}>
+                            <motion.div initial={{ scale: 0.95, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+                                style={{
+                                    width: 360, background: C.surface, borderRadius: 16, padding: 24,
+                                    boxShadow: C.shadowLg, border: `1px solid ${C.inkFaint}`,
+                                    display: 'flex', flexDirection: 'column', gap: 20
+                                }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 12, borderBottom: `1px solid ${C.inkFaint}` }}>
+                                    <div>
+                                        <p style={{ fontFamily: C.fontDisplay, fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 2 }}>Rename Session</p>
+                                    </div>
+                                    <button onClick={() => { setIsRenameModalOpen(false); setSessionToRename(null); }}
+                                        style={{ background: C.surfaceAlt, border: `1px solid ${C.inkFaint}`, borderRadius: 7, padding: '4px', cursor: 'pointer', color: C.inkMuted, display: 'flex', transition: 'all .15s' }}>
+                                        <X size={13} />
+                                    </button>
+                                </div>
+                                <form onSubmit={handleUpdateSessionName} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <input type="text" className="prompt-box" style={{ minHeight: 'auto', padding: '10px 14px', fontSize: 13 }}
+                                        value={newSessionName} onChange={e => setNewSessionName(e.target.value)} autoFocus placeholder="Session name..." />
+                                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                                        <button type="button" className="stop-btn" style={{ padding: '8px 16px', fontSize: 11 }} onClick={() => { setIsRenameModalOpen(false); setSessionToRename(null); }}>Cancel</button>
+                                        <button type="submit" className="exec-btn" style={{ padding: '8px 16px', fontSize: 11 }} disabled={!newSessionName.trim()}>Save</button>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* ══════════ PARAM MODAL ══════════ */}
                 <AnimatePresence>
                     {isParamModalOpen && (
@@ -1105,7 +1260,8 @@ const Dashboard = () => {
                                 style={{
                                     width: 420, background: C.surface, borderRadius: 16, padding: 28,
                                     boxShadow: C.shadowLg, border: `1px solid ${C.inkFaint}`,
-                                    display: 'flex', flexDirection: 'column', gap: 20
+                                    display: 'flex', flexDirection: 'column', gap: 20,
+                                    maxHeight: '90vh', overflow: 'hidden'
                                 }}>
 
                                 <div style={{
@@ -1132,7 +1288,7 @@ const Dashboard = () => {
                                     </button>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <div className="rck-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', paddingRight: 4 }}>
                                     {requiredFields.map((field, idx) => (
                                         <div key={idx}>
                                             <label style={{

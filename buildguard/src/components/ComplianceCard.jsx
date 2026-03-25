@@ -8,7 +8,7 @@ const ComplianceCard = ({ item, index }) => {
 
     // Categorize status for color and icon
     const isPass = ['PASS', 'PASSED', 'TRUE', 'SAFE', 'OK', 'COMPLIANT'].includes(rawStatus) || item.isSafe === true;
-    const isNeutral = ['NOT APPLICABLE', 'N/A', 'NOT POSSIBLE', 'UNKNOWN'].includes(rawStatus);
+    const isNeutral = ['NOT APPLICABLE', 'N/A', 'NOT POSSIBLE', 'UNKNOWN', 'CANNOT_DETERMINE', 'CANNOT DETERMINE'].includes(rawStatus);
     const isError = ['ERROR', 'WITH ERROR', 'FAILED_TO_PARSE'].includes(rawStatus);
     const isFail = !isPass && !isNeutral && !isError;
 
@@ -79,7 +79,7 @@ const ComplianceCard = ({ item, index }) => {
                     </div>
                 </div>
 
-                {confidenceVal !== null && (
+                {confidenceVal !== null && !isNeutral && (
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{
                             fontFamily: 'var(--font-mono)',
@@ -87,7 +87,9 @@ const ComplianceCard = ({ item, index }) => {
                             fontWeight: '800',
                             color: color
                         }}>
-                            {Math.round(confidenceVal * 100)}%
+                            {isPass 
+                                ? `${Math.round(confidenceVal * 100)}%`
+                                : '0%'}
                         </div>
                         <div style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase' }}>MATCH</div>
                     </div>
